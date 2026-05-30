@@ -1,0 +1,17 @@
+services:
+  frontend:
+    networks:
+      caddy:
+        aliases:
+          - bulls-and-cow-frontend
+
+  server:
+    networks:
+      caddy:
+        aliases:
+          - bulls-and-cow-server
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK}

@@ -7,6 +7,10 @@ services:
       NODE_ENV: production
     depends_on:
       - server
+    networks:
+      default:
+        aliases:
+          - bulls-and-cow-frontend
 
   server:
     build:
@@ -15,9 +19,15 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+    networks:
+      default:
+        aliases:
+          - bulls-and-cow-server
 
   caddy:
     image: caddy:2
+    profiles:
+      - standalone
     restart: unless-stopped
     depends_on:
       - frontend

@@ -15,7 +15,9 @@ Use this if you want everything on your own VPS.
 - A domain pointing to your VPS IP
 - Ports `80` and `443` open
 
-### Deploy
+### Deploy on an empty VPS
+
+Use this if ports `80` and `443` are not used by another reverse proxy.
 
 Clone the repo on your VPS:
 
@@ -33,7 +35,7 @@ DOMAIN=your-domain.com
 Start the app:
 
 ```bash
-docker compose up -d --build
+docker compose --profile standalone up -d --build
 ```
 
 Open:
@@ -58,6 +60,76 @@ To see logs:
 
 ```bash
 docker compose logs -f
+```
+
+### Deploy behind an existing Caddy container
+
+Use this if another Caddy container already owns ports `80` and `443`.
+
+Find the Caddy network:
+
+```bash
+docker inspect ariverse-caddy-1 --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}'
+```
+
+Create `.env`:
+
+```txt
+DOMAIN=bulls.your-domain.com
+CADDY_NETWORK=your-caddy-network
+```
+
+Start only the app containers and attach them to the existing Caddy network:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.existing-caddy.yml up -d --build frontend server
+```
+
+Then add this route to your existing Caddy config:
+
+```caddyfile
+bulls.your-domain.com {
+  encode zstd gzip
+
+  reverse_proxy /ws bulls-and-cow-server:3001
+  reverse_proxy /api/* bulls-and-cow-server:3001
+  reverse_proxy bulls-and-cow-frontend:3000
+}
+```
+
+Reload existing Caddy:
+
+```bash
+docker exec ariverse-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+```
+
+### Deploy behind a host-network Caddy
+
+Use this if Caddy runs with `--network host`.
+
+Start Bulls and Cow on localhost-only ports:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.host-caddy.yml up -d --build frontend server
+```
+
+Add this route to `/home/ariverse/Caddyfile`:
+
+```caddyfile
+bulls.your-domain.com {
+  encode gzip
+
+  reverse_proxy /ws 127.0.0.1:3011
+  reverse_proxy /api/* 127.0.0.1:3011
+  reverse_proxy 127.0.0.1:3010
+}
+```
+
+Reload Caddy:
+
+```bash
+docker exec clean-caddy caddy validate --config /etc/caddy/Caddyfile
+docker exec clean-caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
 ## Vercel + Render
