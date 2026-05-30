@@ -36,9 +36,9 @@ export default function Toast({ message, visible, onDone, duration = 2000, varia
   if (!show) return null;
 
   const colors = {
-    success: "bg-emerald-600/90 border-emerald-400/30",
-    error: "bg-red-700/90 border-red-400/30",
-    info: "bg-primary/90 border-primary/30",
+    success: "bg-emerald-500 border-black text-white",
+    error: "bg-red-500 border-black text-white",
+    info: "bg-violet-600 border-black text-white",
   };
 
   return (
@@ -46,9 +46,9 @@ export default function Toast({ message, visible, onDone, duration = 2000, varia
       <div
         className={`${closing ? "animate-toast-out" : "animate-toast-in"} ${
           colors[variant]
-        } border backdrop-blur-sm rounded-xl px-5 py-3 shadow-lg`}
+        } border-2 rounded-xl px-5 py-3 shadow-[3px_3px_0_0_#000]`}
       >
-        <p className="text-sm font-black text-white text-center">{message}</p>
+        <p className="text-sm font-black text-center">{message}</p>
       </div>
     </div>
   );

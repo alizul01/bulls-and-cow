@@ -31,7 +31,7 @@ export default function NumberInput({
   return (
     <div className="space-y-3">
       {label && (
-        <label className="block text-xs font-black text-gray-500 uppercase tracking-widest">
+        <label className="block text-xs font-black text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">
           {label}
         </label>
       )}
@@ -65,18 +65,18 @@ export default function NumberInput({
             return (
               <div
                 key={i}
-                className={`h-18 flex items-center justify-center text-3xl font-black rounded-2xl border-2 transition-all select-none ${
+                className={`h-16 flex items-center justify-center text-3xl font-black rounded-xl border-2 transition-all select-none ${
                   digit
-                    ? "bg-primary/15 text-primary border-primary/60 shadow-[0_4px_0_0_rgba(91,33,182,0.5)]"
+                    ? "bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200 border-black dark:border-violet-400 shadow-[2px_2px_0_0_#000] dark:shadow-none"
                     : isCursor
-                    ? "bg-surface-light border-primary/50"
-                    : "bg-surface border-surface-light"
+                    ? "bg-white dark:bg-zinc-800 border-violet-500 dark:border-violet-400"
+                    : "bg-white dark:bg-zinc-800/60 border-neutral-200 dark:border-zinc-600"
                 } ${disabled ? "opacity-50" : ""}`}
               >
                 {digit ? (
                   digit
                 ) : isCursor ? (
-                  <span className="w-0.5 h-7 bg-primary/70 animate-pulse rounded-full" />
+                  <span className="w-0.5 h-7 bg-violet-500 dark:bg-violet-400 animate-pulse rounded-full" />
                 ) : null}
               </div>
             );
@@ -85,12 +85,12 @@ export default function NumberInput({
       </div>
 
       {error && (
-        <p className="text-danger text-sm font-black flex items-center gap-1.5">
+        <p className="text-red-600 dark:text-red-400 text-sm font-black flex items-center gap-1.5">
           ⚠ {error}
         </p>
       )}
       {!error && value.length > 0 && value.length < length && (
-        <p className="text-gray-600 text-sm font-bold">
+        <p className="text-neutral-400 dark:text-neutral-500 text-sm font-bold">
           {length - value.length} more digit
           {length - value.length > 1 ? "s" : ""} needed
         </p>

@@ -146,7 +146,7 @@ export default function MultiplayerPage() {
               <p className="text-yellow-300 font-black text-sm">Reconnecting...</p>
             </div>
             <p className="text-yellow-500/70 text-xs font-bold mt-1">
-              Connection was lost \u2014 trying to restore
+              Connection was lost {'\u2014'} trying to restore
             </p>
           </div>
         )}
@@ -185,7 +185,7 @@ export default function MultiplayerPage() {
         </button>
 
         <Link href="/" className="text-sm text-gray-600 hover:text-gray-400 font-bold">
-          \u2190 Back
+          {'\u2190'} Back
         </Link>
       </div>
     );
@@ -217,7 +217,7 @@ export default function MultiplayerPage() {
           href="/"
           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-surface text-gray-400 font-black text-lg active:scale-90 transition-transform"
         >
-          \u2039
+          {'\u2039'}
         </Link>
         <div className="flex items-center gap-2 sm:gap-3">
           <button
@@ -259,7 +259,7 @@ export default function MultiplayerPage() {
       <div className="text-center space-y-1">
         <h1 className="text-xl sm:text-2xl font-black">Multiplayer</h1>
         <p className="text-gray-500 text-xs font-bold">
-          Each player sets a secret \u2014 race to crack the other&apos;s!
+          Each player sets a secret {'\u2014'} race to crack the other&apos;s!
         </p>
       </div>
 
@@ -269,7 +269,7 @@ export default function MultiplayerPage() {
             ? "bg-amber-500/10 border-amber-500/30"
             : "bg-danger/10 border-danger/30"
         }`}>
-          <span className="shrink-0 text-sm mt-0.5">\u26A0</span>
+          <span className="shrink-0 text-sm mt-0.5">{'\u26A0'}</span>
           <div>
             <p className={`text-sm font-black ${errorType === "room_expired" ? "text-amber-300" : "text-danger"}`}>
               {error}
@@ -445,13 +445,13 @@ export default function MultiplayerPage() {
             <div>
               <h2 className="text-base sm:text-lg font-black">Set Your Secret</h2>
               <p className="text-xs sm:text-sm text-gray-500 font-bold mt-1">
-                Pick a 4-digit number \u2014 your opponent will try to crack it!
+                Pick a 4-digit number {'\u2014'} your opponent will try to crack it!
               </p>
             </div>
 
             {mySecretSet ? (
               <div className="text-center py-4 sm:py-5 animate-scale-in">
-                <div className="text-3xl sm:text-4xl mb-2">\u2705</div>
+                <div className="text-3xl sm:text-4xl mb-2">{'\u2705'}</div>
                 <p className="text-success font-black">Secret locked in!</p>
                 <p className="text-gray-500 text-xs sm:text-sm font-bold mt-1">
                   {opponentSecretSet
@@ -530,7 +530,7 @@ export default function MultiplayerPage() {
                   {opponentName ?? "Opponent"} disconnected
                 </p>
                 <p className="text-yellow-500/70 text-xs font-bold">
-                  Waiting for them to rejoin \u2014 room stays open for 10 min
+                  Waiting for them to rejoin {'\u2014'} room stays open for 10 min
                 </p>
               </div>
             </div>

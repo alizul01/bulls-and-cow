@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: applies dark: variants when an ancestor has class="dark" */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #7c3aed;
   --color-primary-dark: #5b21b6;
-  --color-surface: #161330;
-  --color-surface-light: #231d4f;
-  --color-accent: #c4b5fd;
-  --color-bull: #f59e0b;
-  --color-cow: #2dd4bf;
-  --color-success: #4ade80;
-  --color-danger: #f87171;
+  --color-bull: #d97706;
+  --color-cow: #0d9488;
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
 }
 
 * {
@@ -25,14 +25,14 @@ input, textarea, select {
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
 
-/* Duolingo-style push button */
+/* Neobrutalism push button — translate matches shadow offset */
 .btn-push {
   transition: transform 80ms ease, box-shadow 80ms ease;
 }
 
 .btn-push:active:not(:disabled) {
-  transform: translateY(3px);
-  box-shadow: none !important;
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 transparent !important;
 }
 
 /* Animations */
@@ -64,13 +64,13 @@ input, textarea, select {
 }
 
 @keyframes pulseWin {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
-  50% { box-shadow: 0 0 0 12px rgba(74, 222, 128, 0); }
+  0%, 100% { box-shadow: 3px 3px 0 0 #000, 0 0 0 0 rgba(22, 163, 74, 0.4); }
+  50% { box-shadow: 3px 3px 0 0 #000, 0 0 0 12px rgba(22, 163, 74, 0); }
 }
 
 @keyframes pulseLose {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4); }
-  50% { box-shadow: 0 0 0 12px rgba(248, 113, 113, 0); }
+  0%, 100% { box-shadow: 3px 3px 0 0 #000, 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 3px 3px 0 0 #000, 0 0 0 12px rgba(220, 38, 38, 0); }
 }
 
 @keyframes shakeX {
