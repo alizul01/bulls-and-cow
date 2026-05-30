@@ -17,7 +17,7 @@ const STORAGE_CLIENT_ID = "mp_client_id";
 const STORAGE_ROOM_CODE = "mp_room_code";
 const STORAGE_MY_SECRET = "mp_my_secret";
 
-type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "error";
 type GamePhase =
   | "idle"
   | "creating"
@@ -45,7 +45,10 @@ interface MultiplayerState {
   opponentSecret: string | null;
   opponentOnline: boolean;
   error: string | null;
+  errorType: string | null;
   lastResult: { guess: string; bulls: number; cows: number } | null;
+  isSubmitting: boolean;
+  reconnecting: boolean;
 }
 
 function getClientId(): string {
@@ -76,35 +79,113 @@ const initialState: MultiplayerState = {
   opponentSecret: null,
   opponentOnline: true,
   error: null,
+  errorType: null,
   lastResult: null,
+  isSubmitting: false,
+  reconnecting: false,
 };
 
 type GuessList = { guess: string; bulls: number; cows: number }[];
+
+function getUserFriendlyError(errorType: string | null, message: string): string {
+  const map: Record<string, string> = {
+    already_in_room: "You are already in another room. Leave it first.",
+    rate_limited: "You're acting too fast. Take a breath and try again.",
+    room_not_found: "Room was not found. It may have expired.",
+    wrong_phase: "That action can't be taken right now.",
+    game_over: "This game has already ended.",
+    already_set: "Your secret is already locked in.",
+    invalid_client: "Connection issue. Try reconnecting.",
+    invalid_code: "Invalid room code format.",
+    invalid_guess: "Invalid guess.",
+    unknown_type: "Unexpected server error.",
+  };
+  return map[errorType ?? ""] ?? message;
+}
 
 export function useMultiplayer() {
   const wsRef = useRef<WebSocket | null>(null);
   const [state, setState] = useState<MultiplayerState>(initialState);
   const clientId = useRef<string>("");
+  const retryCount = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shouldReconnect = useRef(false);
+  const sentMessages = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     clientId.current = getClientId();
   }, []);
 
   const sendMsg = useCallback((type: string, payload: Record<string, unknown> = {}) => {
-    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify({ type, payload: { ...payload, clientId: clientId.current } }));
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
+
+    const messageId = crypto.randomUUID();
+    sentMessages.current.add(messageId);
+
+    wsRef.current.send(JSON.stringify({
+      type,
+      payload: { ...payload, clientId: clientId.current, messageId },
+    }));
+    return true;
   }, []);
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  const clearRetry = useCallback(() => {
+    if (retryTimer.current) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+    }
+  }, []);
 
-    setState((prev) => ({ ...prev, status: "connecting", error: null }));
+  const stopPing = useCallback(() => {
+    if (pingTimer.current) {
+      clearInterval(pingTimer.current);
+      pingTimer.current = null;
+    }
+  }, []);
+
+  const startPing = useCallback(() => {
+    stopPing();
+    pingTimer.current = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping", payload: {} }));
+      }
+    }, 15_000);
+  }, [stopPing]);
+
+  const scheduleReconnect = useCallback(() => {
+    if (!shouldReconnect.current) return;
+
+    const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30_000);
+    const jitter = delay * 0.3 * Math.random();
+    const wait = delay + jitter;
+
+    retryCount.current++;
+    setState((prev) => ({ ...prev, reconnecting: true, error: null }));
+
+    retryTimer.current = setTimeout(() => {
+      retryTimer.current = null;
+      doConnect();
+    }, wait);
+  }, []);
+
+  const doConnect = useCallback(() => {
+    clearRetry();
 
     const ws = new WebSocket(getServerUrl());
     wsRef.current = ws;
 
     ws.onopen = () => {
-      setState((prev) => ({ ...prev, status: "connected" }));
+      retryCount.current = 0;
+      startPing();
+      setState((prev) => ({
+        ...prev,
+        status: "connected",
+        reconnecting: false,
+        error: null,
+        errorType: null,
+      }));
+
       const savedCode = localStorage.getItem(STORAGE_ROOM_CODE);
       if (savedCode) {
         ws.send(JSON.stringify({
@@ -117,40 +198,59 @@ export function useMultiplayer() {
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
 
+      // P0-7: heartbeat
+      if (msg.type === "pong") return;
+
       setState((prev) => {
         switch (msg.type) {
-          case "room_created":
-            localStorage.setItem(STORAGE_ROOM_CODE, msg.payload.code);
+          case "room_created": {
+            const code = msg.payload.code as string;
+            localStorage.setItem(STORAGE_ROOM_CODE, code);
+            shouldReconnect.current = true;
             return {
               ...prev,
               phase: "waiting",
-              roomCode: msg.payload.code,
-              hostName: msg.payload.hostName,
+              roomCode: code,
+              hostName: msg.payload.hostName as string,
               isHost: true,
               error: null,
+              errorType: null,
+              isSubmitting: false,
             };
+          }
 
-          case "join_success":
-            localStorage.setItem(STORAGE_ROOM_CODE, msg.payload.code);
+          case "join_success": {
+            const code = msg.payload.code as string;
+            localStorage.setItem(STORAGE_ROOM_CODE, code);
+            shouldReconnect.current = true;
             return {
               ...prev,
               phase: "setting_secret",
-              roomCode: msg.payload.code,
-              hostName: msg.payload.hostName,
-              guestName: msg.payload.guestName,
+              roomCode: code,
+              hostName: msg.payload.hostName as string,
+              guestName: msg.payload.guestName as string,
               isHost: false,
               opponentOnline: true,
               error: null,
+              errorType: null,
+              isSubmitting: false,
             };
+          }
 
           case "join_error":
-            return { ...prev, error: msg.payload.message, phase: "idle" };
+            return {
+              ...prev,
+              error: getUserFriendlyError(null, msg.payload.message as string),
+              errorType: (msg.payload.errorType as string) ?? null,
+              phase: "idle",
+              isSubmitting: false,
+            };
 
           case "opponent_joined":
             return {
               ...prev,
               phase: "setting_secret",
-              guestName: msg.payload.guestName,
+              guestName: msg.payload.guestName as string,
               opponentOnline: true,
             };
 
@@ -169,9 +269,10 @@ export function useMultiplayer() {
               (g, i) => ({ id: i + 1, guess: g.guess, bulls: g.bulls, cows: g.cows })
             );
 
-            // P0-2: server is authoritative for mySecret — save to localStorage too
             const mySecret = (p.mySecret as string | null) ?? localStorage.getItem(STORAGE_MY_SECRET);
             if (mySecret) localStorage.setItem(STORAGE_MY_SECRET, mySecret);
+
+            shouldReconnect.current = true;
 
             return {
               ...prev,
@@ -195,17 +296,20 @@ export function useMultiplayer() {
               opponentSecret: (p.opponentSecret as string | null) ?? null,
               opponentOnline: true,
               error: null,
+              errorType: null,
+              reconnecting: false,
+              isSubmitting: false,
             };
           }
 
           case "secret_set":
-            return { ...prev, mySecretSet: true };
+            return { ...prev, mySecretSet: true, isSubmitting: false };
 
           case "opponent_secret_set":
             return { ...prev, opponentSecretSet: true };
 
           case "game_started":
-            return { ...prev, phase: "playing", mySecretSet: true, opponentSecretSet: true };
+            return { ...prev, phase: "playing", mySecretSet: true, opponentSecretSet: true, isSubmitting: false };
 
           case "guess_result": {
             const p = msg.payload;
@@ -234,33 +338,64 @@ export function useMultiplayer() {
               winner: winner ?? prev.winner,
               opponentSecret: (p.opponentSecret as string | null) ?? prev.opponentSecret,
               phase: p.winner ? "finished" : prev.phase,
+              isSubmitting: false,
+              error: null,
+              errorType: null,
             };
           }
 
-          // P0-4: dedicated opponentOnline flag, not an error
           case "opponent_disconnected":
             return { ...prev, opponentOnline: false };
 
-          // P0-4: opponent came back
           case "opponent_rejoined":
-            return { ...prev, opponentOnline: true, error: null };
+            return { ...prev, opponentOnline: true, error: null, errorType: null };
 
           case "opponent_left":
             localStorage.removeItem(STORAGE_ROOM_CODE);
             localStorage.removeItem(STORAGE_MY_SECRET);
-            return { ...prev, opponentOnline: false, error: "Opponent left the room.", phase: "finished" };
+            shouldReconnect.current = false;
+            return { ...prev, opponentOnline: false, error: "Opponent left the room.", errorType: "opponent_left", phase: "finished", isSubmitting: false };
+
+          case "room_closed": {
+            localStorage.removeItem(STORAGE_ROOM_CODE);
+            localStorage.removeItem(STORAGE_MY_SECRET);
+            shouldReconnect.current = false;
+            return {
+              ...prev,
+              phase: "idle",
+              error: "Room has expired. You've been returned to the lobby.",
+              errorType: "room_expired",
+              roomCode: null,
+              isSubmitting: false,
+            };
+          }
 
           case "invalid_guess":
           case "invalid_secret":
+            return {
+              ...prev,
+              error: msg.payload.message as string,
+              errorType: msg.payload.errorType as string ?? null,
+              isSubmitting: false,
+            };
+
           case "error":
-            return { ...prev, error: msg.payload.message as string };
+            return {
+              ...prev,
+              error: getUserFriendlyError((msg.payload.errorType as string) ?? null, msg.payload.message as string),
+              errorType: (msg.payload.errorType as string) ?? null,
+              isSubmitting: false,
+            };
 
           case "rejoin_error":
             localStorage.removeItem(STORAGE_ROOM_CODE);
             localStorage.removeItem(STORAGE_MY_SECRET);
-            return prev;
+            shouldReconnect.current = false;
+            return { ...prev, reconnecting: false, phase: "idle" };
 
           case "room_left":
+            stopPing();
+            shouldReconnect.current = false;
             return { ...initialState, status: prev.status };
 
           default:
@@ -270,32 +405,58 @@ export function useMultiplayer() {
     };
 
     ws.onerror = () => {
-      setState((prev) => ({ ...prev, status: "error", error: "Connection failed" }));
+      stopPing();
+      setState((prev) => ({
+        ...prev,
+        status: "error",
+        reconnecting: false,
+        error: "Connection failed. Will retry...",
+        errorType: "connection_failed",
+      }));
     };
 
     ws.onclose = () => {
-      setState((prev) => ({ ...prev, status: "disconnected" }));
+      stopPing();
+      setState((prev) => ({
+        ...prev,
+        status: "disconnected",
+        reconnecting: false,
+        isSubmitting: false,
+      }));
+
+      if (shouldReconnect.current) {
+        scheduleReconnect();
+      }
     };
-  }, []);
+  }, [clearRetry, startPing, stopPing, scheduleReconnect]);
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    shouldReconnect.current = true;
+    retryCount.current = 0;
+    setState((prev) => ({ ...prev, status: "connecting", error: null, errorType: null }));
+    doConnect();
+  }, [doConnect]);
 
   const createRoom = useCallback((playerName: string) => {
-    setState((prev) => ({ ...prev, playerName, phase: "creating", error: null }));
+    setState((prev) => ({ ...prev, playerName, phase: "creating", error: null, errorType: null, isSubmitting: true }));
     sendMsg("create_room", { name: playerName });
   }, [sendMsg]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {
-    setState((prev) => ({ ...prev, playerName, phase: "joining", error: null }));
+    setState((prev) => ({ ...prev, playerName, phase: "joining", error: null, errorType: null, isSubmitting: true }));
     sendMsg("join_room", { code: roomCode, name: playerName });
   }, [sendMsg]);
 
   const submitSecret = useCallback((secret: string, roomCode: string) => {
     localStorage.setItem(STORAGE_MY_SECRET, secret);
-    setState((prev) => ({ ...prev, mySecret: secret }));
+    setState((prev) => ({ ...prev, mySecret: secret, isSubmitting: true, error: null }));
     sendMsg("set_secret", { secret, code: roomCode });
   }, [sendMsg]);
 
   const makeGuess = useCallback((guess: string, roomCode: string) => {
-    setState((prev) => ({ ...prev, error: null }));
+    setState((prev) => ({ ...prev, error: null, errorType: null, isSubmitting: true }));
     sendMsg("make_guess", { guess, code: roomCode });
   }, [sendMsg]);
 
@@ -303,22 +464,29 @@ export function useMultiplayer() {
     if (roomCode) sendMsg("leave_room", { code: roomCode });
     localStorage.removeItem(STORAGE_ROOM_CODE);
     localStorage.removeItem(STORAGE_MY_SECRET);
+    shouldReconnect.current = false;
+    stopPing();
     setState((prev) => ({ ...initialState, status: prev.status }));
-  }, [sendMsg]);
+  }, [sendMsg, stopPing]);
 
   const disconnect = useCallback(() => {
+    clearRetry();
+    stopPing();
     wsRef.current?.close();
     wsRef.current = null;
+    shouldReconnect.current = false;
     localStorage.removeItem(STORAGE_ROOM_CODE);
     localStorage.removeItem(STORAGE_MY_SECRET);
     setState(initialState);
-  }, []);
+  }, [clearRetry, stopPing]);
 
   useEffect(() => {
     return () => {
+      clearRetry();
+      stopPing();
       wsRef.current?.close();
     };
-  }, []);
+  }, [clearRetry, stopPing]);
 
   return {
     ...state,

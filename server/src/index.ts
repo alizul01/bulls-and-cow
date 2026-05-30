@@ -2,16 +2,9 @@ import { Elysia } from "elysia";
 import { gameWS } from "./ws/game";
 import { getRoom, cleanupExpiredRooms, getRoomCount } from "./store/rooms";
 
-const ROOM_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const CLEANUP_INTERVAL_MS = 60 * 1000; // run every 1 minute
+const ROOM_TTL_MS = 10 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 60 * 1000;
 const PORT = Number(process.env.PORT ?? 3001);
-
-setInterval(() => {
-  const removed = cleanupExpiredRooms(ROOM_TTL_MS);
-  if (removed > 0) {
-    console.log(`[Cleanup] Removed ${removed} expired room(s). Active: ${getRoomCount()}`);
-  }
-}, CLEANUP_INTERVAL_MS);
 
 const app = new Elysia()
   .ws("/ws", gameWS)
@@ -35,6 +28,15 @@ const app = new Elysia()
     port: PORT,
     hostname: "0.0.0.0",
   });
+
+globalThis._elysiaApp = app;
+
+setInterval(() => {
+  const removed = cleanupExpiredRooms(ROOM_TTL_MS);
+  if (removed.length > 0) {
+    console.log(`[Cleanup] Removed ${removed.length} expired room(s): ${removed.join(", ")}. Active: ${getRoomCount()}`);
+  }
+}, CLEANUP_INTERVAL_MS);
 
 console.log(`🟢 Bulls & Cows server running at http://localhost:${app.server?.port}`);
 
