@@ -15,6 +15,7 @@ export interface RoomSettings {
   digitLength: number;
   allowDuplicates: boolean;
   maxAttempts: number;
+  isPublic: boolean;
 }
 
 export interface Room {
@@ -79,6 +80,7 @@ export function createRoom(
       digitLength: clamp(settings.digitLength ?? 4, 3, 7),
       allowDuplicates: settings.allowDuplicates ?? false,
       maxAttempts: clamp(settings.maxAttempts ?? 0, 0, 100),
+      isPublic: settings.isPublic ?? true,
     },
     phase: "waiting",
     createdAt: Date.now(),
@@ -287,4 +289,21 @@ export function getRoomCount(): number {
 
 export function clearAllRooms(): void {
   rooms.clear();
+}
+
+export function listPublicRooms(): Pick<Room, "code" | "hostName" | "settings" | "createdAt" | "phase">[] {
+  const result: Pick<Room, "code" | "hostName" | "settings" | "createdAt" | "phase">[] = [];
+  for (const room of rooms.values()) {
+    if (room.settings.isPublic && room.phase === "waiting" && !room.guestClientId) {
+      result.push({
+        code: room.code,
+        hostName: room.hostName,
+        settings: room.settings,
+        createdAt: room.createdAt,
+        phase: room.phase,
+      });
+    }
+  }
+  result.sort((a, b) => b.createdAt - a.createdAt);
+  return result;
 }

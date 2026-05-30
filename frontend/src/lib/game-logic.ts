@@ -12,6 +12,7 @@ export interface RoomSettings {
   digitLength: number;
   allowDuplicates: boolean;
   maxAttempts: number;
+  isPublic: boolean;
 }
 
 export function calcBullsCows(

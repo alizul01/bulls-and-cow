@@ -1,7 +1,8 @@
 import { Elysia } from "elysia";
 import { gameWS } from "./ws/game";
-import { getRoom, cleanupExpiredRooms, getRoomCount } from "./store/rooms";
+import { getRoom, cleanupExpiredRooms, getRoomCount, listPublicRooms } from "./store/rooms";
 import { generateDailySecret, isValidNumber } from "./game/logic";
+import { createOrUpdateUser, getUserByToken, removeSession } from "./store/auth";
 
 const ROOM_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -17,9 +18,29 @@ function getDailyAttemptKey() {
   return `daily_${getTodayKey()}`;
 }
 
+async function verifyGoogleToken(idToken: string): Promise<{ sub: string; name: string; email: string; picture: string } | null> {
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.sub) return null;
+    return {
+      sub: data.sub,
+      name: data.name ?? "Player",
+      email: data.email ?? "",
+      picture: data.picture ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 const app = new Elysia()
   .ws("/ws", gameWS)
   .get("/api/health", () => ({ status: "ok", rooms: getRoomCount() }))
+  .get("/api/rooms", () => {
+    return listPublicRooms();
+  })
   .get(
     "/api/rooms/:code",
     ({ params: { code } }) => {
@@ -37,6 +58,47 @@ const app = new Elysia()
       };
     }
   )
+  .post("/api/auth/google", async ({ request }) => {
+    try {
+      const body = await request.json() as { idToken: string };
+      const idToken = body.idToken ?? "";
+      if (!idToken) return Response.json({ error: "Missing token" }, { status: 400 });
+
+      const profile = await verifyGoogleToken(idToken);
+      if (!profile) return Response.json({ error: "Invalid token" }, { status: 401 });
+
+      const sessionToken = createOrUpdateUser({
+        id: profile.sub,
+        name: profile.name,
+        email: profile.email,
+        picture: profile.picture,
+      });
+
+      return {
+        token: sessionToken,
+        user: { id: profile.sub, name: profile.name, email: profile.email, picture: profile.picture },
+      };
+    } catch {
+      return Response.json({ error: "Invalid request" }, { status: 400 });
+    }
+  })
+  .get("/api/auth/me", ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth?.startsWith("Bearer ")) {
+      return Response.json({ user: null }, { status: 401 });
+    }
+    const token = auth.slice(7);
+    const user = getUserByToken(token);
+    if (!user) return Response.json({ user: null }, { status: 401 });
+    return { user };
+  })
+  .post("/api/auth/logout", ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (auth?.startsWith("Bearer ")) {
+      removeSession(auth.slice(7));
+    }
+    return { ok: true };
+  })
   .get("/api/daily", ({ request }) => {
     const today = getTodayKey();
     const secret = generateDailySecret(today);

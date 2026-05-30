@@ -87,6 +87,7 @@ export const gameWS = {
         const digitLength = Number(payload.digitLength) || 4;
         const allowDuplicates = payload.allowDuplicates === true;
         const maxAttempts = Number(payload.maxAttempts) || 0;
+        const isPublic = payload.isPublic !== false;
 
         if (!clientId || !isValidUUID(clientId)) {
           ws.send({ type: "error", payload: { message: "Invalid client identity" } });
@@ -120,7 +121,7 @@ export const gameWS = {
           return;
         }
 
-        const room = createRoom(wsId, clientId, name, { gameMode, digitLength, allowDuplicates, maxAttempts });
+        const room = createRoom(wsId, clientId, name, { gameMode, digitLength, allowDuplicates, maxAttempts, isPublic });
         ws.subscribe(`room:${room.code}`);
 
         ws.send({

@@ -34,6 +34,7 @@ const defaultSettings: RoomSettings = {
   digitLength: 4,
   allowDuplicates: false,
   maxAttempts: 0,
+  isPublic: true,
 };
 
 interface MultiplayerState {
@@ -109,6 +110,7 @@ function readSettings(payload: any, fallback: RoomSettings = defaultSettings): R
     digitLength: (payload.digitLength as number) ?? (s.digitLength as number) ?? fallback.digitLength,
     allowDuplicates: (s.allowDuplicates as boolean) ?? fallback.allowDuplicates,
     maxAttempts: (s.maxAttempts as number) ?? fallback.maxAttempts,
+    isPublic: (s.isPublic as boolean) ?? fallback.isPublic,
   };
 }
 

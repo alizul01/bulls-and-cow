@@ -31,6 +31,7 @@ export default function DailyPage() {
     digitLength: 4,
     allowDuplicates: false,
     maxAttempts: 0,
+    isPublic: false,
   };
 
   useEffect(() => {
