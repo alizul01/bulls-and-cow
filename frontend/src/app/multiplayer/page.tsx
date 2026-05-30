@@ -7,6 +7,7 @@ import GuessHistory from "@/components/GuessHistory";
 import Toast from "@/components/Toast";
 import { useMultiplayer } from "@/hooks/useMultiplayer";
 import { useSound } from "@/hooks/useSound";
+import ScratchPad, { useScratchPad } from "@/components/ScratchPad";
 
 export default function MultiplayerPage() {
   const {
@@ -40,6 +41,7 @@ export default function MultiplayerPage() {
   } = useMultiplayer();
 
   const { playGuess, playWin, playLose, playError, playConnected, setEnabled, isEnabled } = useSound();
+  const sp = useScratchPad(roomCode);
 
   const [nameInput, setNameInput] = useState("");
   const [roomInput, setRoomInput] = useState("");
@@ -197,7 +199,8 @@ export default function MultiplayerPage() {
   const showGame = phase === "playing" || phase === "finished";
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <>
+      <div className="space-y-4 sm:space-y-5">
       <Toast message="Copied!" visible={copied} variant="success" duration={1600} />
       <Toast
         message="Connected!"
@@ -221,6 +224,19 @@ export default function MultiplayerPage() {
             title={soundOn ? "Mute sounds" : "Enable sounds"}
           >
             {soundOn ? "🔊" : "🔇"}
+          </button>
+          {/* Scratch Pad toggle */}
+          <button
+            onClick={sp.toggle}
+            disabled={!roomCode}
+            className={`text-sm px-2 py-1 rounded-lg border-2 shadow-[2px_2px_0_0_#000] dark:shadow-none btn-push transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              sp.open
+                ? "bg-amber-200 dark:bg-amber-800 border-amber-500 text-amber-900 dark:text-amber-200"
+                : "bg-white dark:bg-zinc-900 border-black dark:border-zinc-600 text-black dark:text-white"
+            }`}
+            title="Scratch Pad"
+          >
+            ✏
           </button>
           {isReconnecting ? (
             <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
@@ -684,5 +700,13 @@ export default function MultiplayerPage() {
         </div>
       )}
     </div>
+      <ScratchPad
+        notes={sp.notes}
+        onChange={sp.updateNotes}
+        open={sp.open}
+        onClose={sp.close}
+        disabled={!roomCode}
+      />
+    </>
   );
 }
