@@ -31,6 +31,9 @@ export default function MultiplayerPage() {
     lastResult,
     isSubmitting,
     reconnecting,
+    gameMode,
+    currentTurn,
+    isMyTurn,
     connect,
     createRoom,
     joinRoom,
@@ -48,6 +51,7 @@ export default function MultiplayerPage() {
   const [guessInput, setGuessInput] = useState("");
   const [secretInput, setSecretInput] = useState("");
   const [mode, setMode] = useState<"create" | "join" | null>(null);
+  const [createGameMode, setCreateGameMode] = useState<"free" | "turns">("turns");
   const [copied, setCopied] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const prevIsComplete = useRef(false);
@@ -128,6 +132,7 @@ export default function MultiplayerPage() {
   const isReconnecting = reconnecting || status === "reconnecting";
   const myName = isHost ? hostName : guestName;
   const opponentName = isHost ? guestName : hostName;
+  const currentTurnName = currentTurn === "host" ? hostName : currentTurn === "guest" ? guestName : null;
 
   // ===== NOT CONNECTED =====
   if (!isConnected) {
@@ -313,7 +318,7 @@ export default function MultiplayerPage() {
               className="w-full bg-neutral-50 dark:bg-zinc-800 border-2 border-neutral-200 dark:border-zinc-600 rounded-xl px-4 py-3 text-black dark:text-white font-bold focus:border-black dark:focus:border-violet-400 focus:outline-none transition-colors placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && nameInput.trim() && !mode) setMode("create");
-                if (e.key === "Enter" && nameInput.trim() && mode === "create") createRoom(nameInput);
+                if (e.key === "Enter" && nameInput.trim() && mode === "create") createRoom(nameInput, createGameMode);
               }}
             />
           </div>
@@ -337,8 +342,39 @@ export default function MultiplayerPage() {
             </div>
           ) : mode === "create" ? (
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-neutral-100 dark:bg-zinc-800 p-1.5 border-2 border-black dark:border-zinc-600">
+                <button
+                  type="button"
+                  onClick={() => setCreateGameMode("turns")}
+                  disabled={isSubmitting}
+                  className={`rounded-xl px-3 py-2.5 text-xs font-black transition-colors ${
+                    createGameMode === "turns"
+                      ? "bg-violet-600 text-white shadow-[2px_2px_0_0_#000]"
+                      : "text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white"
+                  }`}
+                >
+                  Take Turns
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateGameMode("free")}
+                  disabled={isSubmitting}
+                  className={`rounded-xl px-3 py-2.5 text-xs font-black transition-colors ${
+                    createGameMode === "free"
+                      ? "bg-violet-600 text-white shadow-[2px_2px_0_0_#000]"
+                      : "text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white"
+                  }`}
+                >
+                  Free Race
+                </button>
+              </div>
+              <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 leading-snug">
+                {createGameMode === "turns"
+                  ? "Players guess one at a time. Host starts first."
+                  : "Both players can guess anytime. Fastest codebreaker wins."}
+              </p>
               <button
-                onClick={() => createRoom(nameInput)}
+                onClick={() => createRoom(nameInput, createGameMode)}
                 disabled={isSubmitting}
                 className="w-full py-3.5 sm:py-4 bg-violet-600 disabled:opacity-40 text-white font-black rounded-2xl border-2 border-black shadow-[3px_3px_0_0_#000] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
               >
@@ -532,6 +568,28 @@ export default function MultiplayerPage() {
             </div>
           </div>
 
+          {gameMode === "turns" && !isComplete && (
+            <div
+              className={`rounded-xl px-4 py-3 border-2 border-black flex items-center justify-between gap-3 shadow-[2px_2px_0_0_#000] dark:shadow-none ${
+                isMyTurn
+                  ? "bg-green-50 dark:bg-green-900/20"
+                  : "bg-amber-50 dark:bg-amber-900/20"
+              }`}
+            >
+              <div>
+                <p className={`text-sm font-black ${isMyTurn ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+                  {isMyTurn ? "Your turn" : `${currentTurnName ?? "Opponent"}'s turn`}
+                </p>
+                <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
+                  Take Turns mode
+                </p>
+              </div>
+              <span className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                {currentTurn === "host" ? "Host" : "Guest"}
+              </span>
+            </div>
+          )}
+
           {/* Opponent offline */}
           {!opponentOnline && !isComplete && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-black dark:border-amber-500 rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in shadow-[2px_2px_0_0_#000] dark:shadow-none">
@@ -659,7 +717,7 @@ export default function MultiplayerPage() {
               <NumberInput
                 value={guessInput}
                 onChange={setGuessInput}
-                disabled={isComplete || isSubmitting}
+                disabled={isComplete || isSubmitting || !isMyTurn}
                 autoFocus
               />
               <button
@@ -667,7 +725,7 @@ export default function MultiplayerPage() {
                   makeGuess(guessInput, roomCode!);
                   setGuessInput("");
                 }}
-                disabled={guessInput.length !== 4 || isComplete || isSubmitting}
+                disabled={guessInput.length !== 4 || isComplete || isSubmitting || !isMyTurn}
                 className="w-full py-3.5 sm:py-4 bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl border-2 border-black shadow-[3px_3px_0_0_#000] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {isSubmitting ? (
@@ -675,6 +733,8 @@ export default function MultiplayerPage() {
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Submitting...
                   </>
+                ) : !isMyTurn ? (
+                  "Waiting for Turn"
                 ) : (
                   "Submit Guess"
                 )}

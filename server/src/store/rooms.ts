@@ -7,6 +7,15 @@ export interface GuessResult {
 }
 
 export type RoomPhase = "waiting" | "setting" | "playing" | "finished";
+export type GameMode = "free" | "turns";
+export type TurnPlayer = "host" | "guest";
+
+export interface RoomSettings {
+  gameMode: GameMode;
+  digitLength: number;
+  allowDuplicates: boolean;
+  maxAttempts: number;
+}
 
 export interface Room {
   code: string;
@@ -21,6 +30,8 @@ export interface Room {
   hostGuesses: GuessResult[];
   guestGuesses: GuessResult[];
   winner?: "host" | "guest";
+  settings: RoomSettings;
+  currentTurn?: TurnPlayer;
   phase: RoomPhase;
   createdAt: number;
   hostDisconnectedAt?: number;
@@ -45,7 +56,12 @@ export function generateRoomCode(): string {
   return code;
 }
 
-export function createRoom(wsId: string, clientId: string, hostName: string): Room {
+export function createRoom(
+  wsId: string,
+  clientId: string,
+  hostName: string,
+  settings: Partial<RoomSettings> = {}
+): Room {
   let code: string;
   do {
     code = generateRoomCode();
@@ -58,12 +74,22 @@ export function createRoom(wsId: string, clientId: string, hostName: string): Ro
     hostName,
     hostGuesses: [],
     guestGuesses: [],
+    settings: {
+      gameMode: settings.gameMode === "turns" ? "turns" : "free",
+      digitLength: clamp(settings.digitLength ?? 4, 3, 7),
+      allowDuplicates: settings.allowDuplicates ?? false,
+      maxAttempts: clamp(settings.maxAttempts ?? 0, 0, 100),
+    },
     phase: "waiting",
     createdAt: Date.now(),
   };
 
   rooms.set(code, room);
   return room;
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
 export function getRoom(code: string): Room | undefined {
@@ -121,6 +147,9 @@ export function setSecret(
   const bothReady = !!(room.hostSecret && room.guestSecret);
   if (bothReady) {
     room.phase = "playing";
+    if (room.settings.gameMode === "turns") {
+      room.currentTurn = "host";
+    }
   }
 
   return { room, bothReady };
@@ -141,7 +170,14 @@ export function makeGuess(
   const secret = isHost ? room.guestSecret! : room.hostSecret!;
   const guesses = isHost ? room.hostGuesses : room.guestGuesses;
 
-  // P0-4: prevent duplicate guess
+  if (room.settings.gameMode === "turns") {
+    const player: TurnPlayer = isHost ? "host" : "guest";
+    if (room.currentTurn !== player) return null;
+  }
+
+  // Check maxAttempts
+  if (room.settings.maxAttempts > 0 && guesses.length >= room.settings.maxAttempts) return null;
+
   if (guesses.length > 0 && guesses[guesses.length - 1].guess === guess) return null;
 
   const result = calcBullsCows(secret, guess);
@@ -151,6 +187,17 @@ export function makeGuess(
   if (isWin && !room.winner) {
     room.winner = isHost ? "host" : "guest";
     room.phase = "finished";
+  } else if (room.settings.gameMode === "turns") {
+    room.currentTurn = isHost ? "guest" : "host";
+  }
+
+  // Check if both players exhausted all attempts
+  if (!isWin && room.settings.maxAttempts > 0) {
+    const hostDone = room.hostGuesses.length >= room.settings.maxAttempts;
+    const guestDone = room.guestGuesses.length >= room.settings.maxAttempts;
+    if (hostDone && guestDone) {
+      room.phase = "finished";
+    }
   }
 
   return { result, isWin, room, isHost };

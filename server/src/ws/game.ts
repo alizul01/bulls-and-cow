@@ -83,6 +83,10 @@ export const gameWS = {
       case "create_room": {
         const clientId = String(payload.clientId || "");
         const rawName = String(payload.name || "");
+        const gameMode = payload.gameMode === "turns" ? "turns" : "free";
+        const digitLength = Number(payload.digitLength) || 4;
+        const allowDuplicates = payload.allowDuplicates === true;
+        const maxAttempts = Number(payload.maxAttempts) || 0;
 
         if (!clientId || !isValidUUID(clientId)) {
           ws.send({ type: "error", payload: { message: "Invalid client identity" } });
@@ -116,12 +120,20 @@ export const gameWS = {
           return;
         }
 
-        const room = createRoom(wsId, clientId, name);
+        const room = createRoom(wsId, clientId, name, { gameMode, digitLength, allowDuplicates, maxAttempts });
         ws.subscribe(`room:${room.code}`);
 
         ws.send({
           type: "room_created",
-          payload: { code: room.code, hostName: room.hostName, isHost: true, ttlMs: 600_000 },
+          payload: {
+            code: room.code,
+            hostName: room.hostName,
+            isHost: true,
+            ttlMs: 600_000,
+            settings: room.settings,
+            currentTurn: room.currentTurn ?? null,
+            digitLength: room.settings.digitLength,
+          },
         });
         console.log(`[WS] Room created: ${room.code} by ${name}`);
         break;
@@ -168,7 +180,19 @@ export const gameWS = {
 
         const room = getRoom(code);
         if (!room) {
-          ws.send({ type: "join_error", payload: { message: "Room not found" } });
+          ws.send({ type: "error", payload: { message: "Room not found", errorType: "room_not_found" } });
+          return;
+        }
+
+        if (!isValidNumber(guess, room.settings.digitLength, room.settings.allowDuplicates)) {
+          ws.send({
+            type: "invalid_guess",
+            payload: {
+              message: room.settings.allowDuplicates
+                ? `Must be ${room.settings.digitLength} digits`
+                : `Must be ${room.settings.digitLength} unique digits`,
+            },
+          });
           return;
         }
         if (room.phase === "finished") {
@@ -185,12 +209,20 @@ export const gameWS = {
         ws.subscribe(`room:${code}`);
         ws.send({
           type: "join_success",
-          payload: { code: joined.code, hostName: joined.hostName, guestName: joined.guestName, isHost: false, ttlMs: 600_000 },
+          payload: {
+            code: joined.code,
+            hostName: joined.hostName,
+            guestName: joined.guestName,
+            isHost: false,
+            ttlMs: 600_000,
+            settings: joined.settings,
+            currentTurn: joined.currentTurn ?? null,
+          },
         });
 
         ws.publish(`room:${code}`, {
           type: "opponent_joined",
-          payload: { guestName: name },
+          payload: { guestName: name, settings: joined.settings, digitLength: joined.settings.digitLength, currentTurn: joined.currentTurn ?? null },
         });
 
         console.log(`[WS] ${name} joined room ${code}`);
@@ -240,6 +272,8 @@ export const gameWS = {
             mySecretSet,
             opponentSecretSet,
             mySecret: mySecret ?? null,
+            settings: room.settings,
+            currentTurn: room.currentTurn ?? null,
             winner: room.winner,
             opponentSecret:
               room.phase === "finished"
@@ -302,6 +336,18 @@ export const gameWS = {
           return;
         }
 
+        if (!isValidNumber(secret, room.settings.digitLength, room.settings.allowDuplicates)) {
+          ws.send({
+            type: "invalid_secret",
+            payload: {
+              message: room.settings.allowDuplicates
+                ? `Must be ${room.settings.digitLength} digits`
+                : `Must be ${room.settings.digitLength} unique digits`,
+            },
+          });
+          return;
+        }
+
         const result = setSecret(code, clientId, secret);
         if (!result) {
           ws.send({ type: "error", payload: { message: "Secret already set or invalid player", errorType: "already_set" } });
@@ -314,7 +360,14 @@ export const gameWS = {
         ws.publish(`room:${code}`, { type: "opponent_secret_set", payload: {} });
 
         if (bothReady) {
-          const gameStarted = { type: "game_started", payload: {} };
+          const gameStarted = {
+            type: "game_started",
+            payload: {
+            settings: room.settings,
+            digitLength: room.settings.digitLength,
+            currentTurn: room.currentTurn ?? null,
+            },
+          };
           ws.publish(`room:${code}`, gameStarted);
           ws.send(gameStarted);
         }
@@ -376,6 +429,14 @@ export const gameWS = {
 
         // P0-5: validate bulls+cows <= 4 on server
         const isHostGuess = room.hostClientId === clientId;
+        if (room.settings.gameMode === "turns") {
+          const player = isHostGuess ? "host" : "guest";
+          if (room.currentTurn !== player) {
+            ws.send({ type: "error", payload: { message: "It's not your turn yet.", errorType: "not_your_turn" } });
+            return;
+          }
+        }
+
         const opponentSecret = isHostGuess ? room.guestSecret : room.hostSecret;
         if (!opponentSecret) {
           ws.send({ type: "error", payload: { message: "Cannot make that guess", errorType: "invalid_secret" } });
@@ -398,6 +459,8 @@ export const gameWS = {
           isWin,
           isHost,
           winner: updatedRoom.winner,
+          settings: updatedRoom.settings,
+          currentTurn: updatedRoom.currentTurn ?? null,
           opponentSecret: isWin ? (isHost ? updatedRoom.guestSecret : updatedRoom.hostSecret) : undefined,
         };
 

@@ -7,6 +7,13 @@ export interface GuessEntry {
   cows: number;
 }
 
+export interface RoomSettings {
+  gameMode: "free" | "turns";
+  digitLength: number;
+  allowDuplicates: boolean;
+  maxAttempts: number;
+}
+
 export function calcBullsCows(
   secret: string,
   guess: string
@@ -25,7 +32,17 @@ export function calcBullsCows(
   return { bulls, cows };
 }
 
-export function generateSecret(digits: number = DEFAULT_DIGITS): string {
+export function generateSecret(
+  digits: number = DEFAULT_DIGITS,
+  allowDuplicates: boolean = false
+): string {
+  if (allowDuplicates) {
+    let result = "";
+    for (let i = 0; i < digits; i++) {
+      result += Math.floor(Math.random() * 10);
+    }
+    return result;
+  }
   const pool = "0123456789".split("");
   const result: string[] = [];
 
@@ -40,10 +57,14 @@ export function generateSecret(digits: number = DEFAULT_DIGITS): string {
 
 export function isValidNumber(
   value: string,
-  digits: number = DEFAULT_DIGITS
+  digits: number = DEFAULT_DIGITS,
+  allowDuplicates: boolean = false
 ): boolean {
   if (value.length !== digits) return false;
   if (!/^\d+$/.test(value)) return false;
-  const unique = new Set(value.split(""));
-  return unique.size === digits;
+  if (!allowDuplicates) {
+    const unique = new Set(value.split(""));
+    return unique.size === digits;
+  }
+  return true;
 }

@@ -35,7 +35,15 @@ describe("createRoom", () => {
     expect(room.guestGuesses).toEqual([]);
     expect(room.guestClientId).toBeUndefined();
     expect(room.winner).toBeUndefined();
+    expect(room.settings.gameMode).toBe("free");
+    expect(room.currentTurn).toBeUndefined();
     expect(getRoomCount()).toBe(1);
+  });
+
+  test("creates turn-based room", () => {
+    const room = createRoom("ws1", makeClientId(), "Alice", { gameMode: "turns" });
+    expect(room.settings.gameMode).toBe("turns");
+    expect(room.currentTurn).toBeUndefined();
   });
 
   test("generates unique codes", () => {
@@ -106,6 +114,19 @@ describe("setSecret", () => {
     expect(result!.room.phase).toBe("playing");
   });
 
+  test("turn-based game starts with host turn", () => {
+    const hostClient = makeClientId();
+    const guestClient = makeClientId();
+    const room = createRoom("ws1", hostClient, "Alice", { gameMode: "turns" });
+    joinRoom(room.code, "ws2", guestClient, "Bob");
+
+    setSecret(room.code, hostClient, "1234");
+    const result = setSecret(room.code, guestClient, "5678");
+    expect(result!.bothReady).toBe(true);
+    expect(result!.room.phase).toBe("playing");
+    expect(result!.room.currentTurn).toBe("host");
+  });
+
   test("cannot set secret twice (idempotent)", () => {
     const hostClient = makeClientId();
     const guestClient = makeClientId();
@@ -135,6 +156,26 @@ describe("setSecret", () => {
 
     const result = setSecret(room.code, makeClientId(), "1234");
     expect(result).toBeNull();
+  });
+
+  test("turn-based game rejects wrong turn and swaps after guess", () => {
+    const hostClient = makeClientId();
+    const guestClient = makeClientId();
+    const room = createRoom("ws1", hostClient, "Alice", { gameMode: "turns" });
+    joinRoom(room.code, "ws2", guestClient, "Bob");
+    setSecret(room.code, hostClient, "1234");
+    setSecret(room.code, guestClient, "5678");
+
+    expect(room.currentTurn).toBe("host");
+    expect(makeGuess(room.code, guestClient, "1234")).toBeNull();
+
+    const hostGuess = makeGuess(room.code, hostClient, "9876");
+    expect(hostGuess).not.toBeNull();
+    expect(hostGuess!.room.currentTurn).toBe("guest");
+
+    const guestGuess = makeGuess(room.code, guestClient, "9876");
+    expect(guestGuess).not.toBeNull();
+    expect(guestGuess!.room.currentTurn).toBe("host");
   });
 });
 
