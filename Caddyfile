@@ -1,0 +1,7 @@
+{$DOMAIN} {
+  encode zstd gzip
+
+  reverse_proxy /ws server:3001
+  reverse_proxy /api/* server:3001
+  reverse_proxy frontend:3000
+}

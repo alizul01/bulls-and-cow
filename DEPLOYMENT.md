@@ -5,6 +5,63 @@ This app has two parts:
 - `frontend`: Next.js app
 - `server`: Bun/Elysia WebSocket server
 
+## VPS with Docker Compose
+
+Use this if you want everything on your own VPS.
+
+### Requirements
+
+- A VPS with Docker and Docker Compose installed
+- A domain pointing to your VPS IP
+- Ports `80` and `443` open
+
+### Deploy
+
+Clone the repo on your VPS:
+
+```bash
+git clone https://github.com/your-user/bulls-and-cow.git
+cd bulls-and-cow
+```
+
+Create `.env` in the project root:
+
+```txt
+DOMAIN=your-domain.com
+```
+
+Start the app:
+
+```bash
+docker compose up -d --build
+```
+
+Open:
+
+```txt
+https://your-domain.com
+```
+
+Caddy serves the frontend and proxies:
+
+- `/ws` to the multiplayer WebSocket server
+- `/api/*` to the server API
+
+To update later:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+To see logs:
+
+```bash
+docker compose logs -f
+```
+
+## Vercel + Render
+
 The easiest low-friction setup is:
 
 - Frontend on Vercel

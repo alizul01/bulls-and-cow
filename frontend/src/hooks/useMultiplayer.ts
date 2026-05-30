@@ -3,7 +3,16 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { GuessEntry } from "@/lib/game-logic";
 
-const SERVER_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
+function getServerUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (typeof window === "undefined") return "ws://localhost:3001/ws";
+
+  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocalhost) return "ws://localhost:3001/ws";
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws`;
+}
 const STORAGE_CLIENT_ID = "mp_client_id";
 const STORAGE_ROOM_CODE = "mp_room_code";
 const STORAGE_MY_SECRET = "mp_my_secret";
@@ -91,7 +100,7 @@ export function useMultiplayer() {
 
     setState((prev) => ({ ...prev, status: "connecting", error: null }));
 
-    const ws = new WebSocket(SERVER_URL);
+    const ws = new WebSocket(getServerUrl());
     wsRef.current = ws;
 
     ws.onopen = () => {
