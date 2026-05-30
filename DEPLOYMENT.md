@@ -107,6 +107,21 @@ docker exec ariverse-caddy-1 caddy reload --config /etc/caddy/Caddyfile
 
 Use this if Caddy runs with `--network host`.
 
+Fully automatic deploy:
+
+```bash
+chmod +x scripts/deploy-host-caddy.sh
+./scripts/deploy-host-caddy.sh bulls.your-domain.com
+```
+
+The script will:
+
+- create `.env`
+- build and start Bulls and Cow on localhost-only ports
+- add/update the Bulls route in `/home/ariverse/Caddyfile`
+- validate and reload Caddy
+- test the local frontend and health endpoint
+
 Start Bulls and Cow on localhost-only ports:
 
 ```bash

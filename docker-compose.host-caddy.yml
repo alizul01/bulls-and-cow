@@ -1,8 +1,8 @@
 services:
   frontend:
     ports:
-      - "127.0.0.1:3010:3000"
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3010}:3000"
 
   server:
     ports:
-      - "127.0.0.1:3011:3001"
+      - "127.0.0.1:${SERVER_HOST_PORT:-3011}:3001"
