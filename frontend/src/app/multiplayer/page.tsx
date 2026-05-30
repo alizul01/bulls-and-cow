@@ -403,7 +403,7 @@ function MultiplayerContent() {
                   <p className="text-xs mt-1">Create one or wait for others!</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {publicRooms.map(room => (
                     <button
                       key={room.code}
@@ -411,13 +411,13 @@ function MultiplayerContent() {
                         setRoomInput(room.code);
                         setMode("join");
                       }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-zinc-800 border-2 border-neutral-200 dark:border-zinc-600 hover:border-violet-400 transition-colors text-left"
+                      className="w-full flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-zinc-800 border-2 border-neutral-200 dark:border-zinc-600 hover:border-violet-400 active:scale-[0.98] transition-all text-left shadow-[2px_2px_0_0_#000] dark:shadow-none"
                     >
                       <div>
-                        <p className="font-black font-mono tracking-widest text-black dark:text-white">{room.code}</p>
-                        <p className="text-xs text-neutral-400 font-bold">{room.hostName} &middot; {room.settings.digitLength}d{room.settings.allowDuplicates ? " dupes" : ""}{room.settings.maxAttempts > 0 ? " max " + room.settings.maxAttempts : ""}</p>
+                        <p className="font-black font-mono tracking-widest text-base text-black dark:text-white">{room.code}</p>
+                        <p className="text-xs text-neutral-400 font-bold mt-0.5">{room.hostName} {'\u00B7'} {room.settings.digitLength}d{room.settings.allowDuplicates ? " dupes" : ""}{room.settings.maxAttempts > 0 ? " max " + room.settings.maxAttempts : ""}</p>
                       </div>
-                      <span className="text-xs font-black text-violet-500">{'\u2192'} Join</span>
+                      <span className="px-3 py-1.5 text-xs font-black rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border-2 border-violet-300 dark:border-violet-500">Join</span>
                     </button>
                   ))}
                 </div>
@@ -523,8 +523,12 @@ function MultiplayerContent() {
             <div className="text-center px-2 sm:px-4 shrink-0"><span className="text-violet-600 dark:text-violet-400 font-black text-sm">{hostName}</span><span className="text-neutral-400 dark:text-neutral-500 font-black mx-1.5 sm:mx-2 text-sm">vs</span><span className="text-violet-500 dark:text-violet-300 font-black text-sm">{guestName}</span></div>
           </div>
           {settings.gameMode === "turns" && !isComplete && (
-            <div className={`text-center text-xs font-black rounded-xl py-2 px-4 ${isMyTurn ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-2 border-green-500" : "bg-neutral-100 dark:bg-zinc-800 text-neutral-500 dark:text-neutral-400 border-2 border-neutral-300 dark:border-zinc-600"}`}>
-              {isMyTurn ? "Your Turn" : `Waiting for ${opponentName}...`}
+            <div className={`text-center font-black rounded-2xl py-3 px-4 border-2 shadow-[2px_2px_0_0_#000] dark:shadow-none transition-colors ${isMyTurn ? "bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-300 border-green-500 shadow-[2px_2px_0_0_#22c55e] dark:shadow-none animate-slide-up" : "bg-neutral-100 dark:bg-zinc-800 text-neutral-500 dark:text-neutral-400 border-neutral-300 dark:border-zinc-600"}`}>
+              {isMyTurn ? (
+                <span className="flex items-center justify-center gap-2">{'\uD83C\uDFAF'} Go! Your turn to guess</span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">{'\u23F3'} Waiting for {opponentName}&apos;s guess...</span>
+              )}
             </div>
           )}
           {!opponentOnline && !isComplete && (
