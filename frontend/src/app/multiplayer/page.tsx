@@ -146,7 +146,7 @@ export default function MultiplayerPage() {
               <p className="text-amber-700 dark:text-amber-300 font-black text-sm">Reconnecting...</p>
             </div>
             <p className="text-amber-600/70 dark:text-amber-500/70 text-xs font-bold mt-1">
-              Connection was lost &#x2014; trying to restore
+              Connection was lost — trying to restore
             </p>
           </div>
         )}
@@ -185,7 +185,7 @@ export default function MultiplayerPage() {
         </button>
 
         <Link href="/" className="text-sm text-neutral-400 dark:text-neutral-500 hover:text-black dark:hover:text-white font-bold">
-          &#x2190; Back
+          ← Back
         </Link>
       </div>
     );
@@ -212,7 +212,7 @@ export default function MultiplayerPage() {
           href="/"
           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-900 border-2 border-black dark:border-zinc-400 text-black dark:text-white font-black text-lg shadow-[2px_2px_0_0_#000] dark:shadow-none btn-push"
         >
-          &#x2039;
+          ‹
         </Link>
         <div className="flex items-center gap-2 sm:gap-3">
           <button
@@ -220,7 +220,7 @@ export default function MultiplayerPage() {
             className="text-sm px-2 py-1 rounded-lg bg-white dark:bg-zinc-900 border-2 border-black dark:border-zinc-600 shadow-[2px_2px_0_0_#000] dark:shadow-none btn-push"
             title={soundOn ? "Mute sounds" : "Enable sounds"}
           >
-            {soundOn ? "&#x1F50A;" : "&#x1F507;"}
+            {soundOn ? "🔊" : "🔇"}
           </button>
           {isReconnecting ? (
             <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
@@ -254,7 +254,7 @@ export default function MultiplayerPage() {
       <div className="text-center space-y-1">
         <h1 className="text-xl sm:text-2xl font-black text-black dark:text-white">Multiplayer</h1>
         <p className="text-neutral-500 dark:text-neutral-400 text-xs font-bold">
-          Each player sets a secret &#x2014; race to crack the other&apos;s!
+          Each player sets a secret — race to crack the other&apos;s!
         </p>
       </div>
 
@@ -264,7 +264,7 @@ export default function MultiplayerPage() {
             ? "bg-amber-50 dark:bg-amber-900/20 border-black dark:border-amber-500"
             : "bg-red-50 dark:bg-red-900/20 border-black dark:border-red-500"
         }`}>
-          <span className="shrink-0 text-sm mt-0.5">&#x26A0;</span>
+          <span className="shrink-0 text-sm mt-0.5">⚠</span>
           <div>
             <p className={`text-sm font-black ${errorType === "room_expired" ? "text-amber-700 dark:text-amber-300" : "text-red-600 dark:text-red-400"}`}>
               {error}
@@ -440,13 +440,13 @@ export default function MultiplayerPage() {
             <div>
               <h2 className="text-base sm:text-lg font-black text-black dark:text-white">Set Your Secret</h2>
               <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 font-bold mt-1">
-                Pick a 4-digit number &#x2014; your opponent will try to crack it!
+                Pick a 4-digit number — your opponent will try to crack it!
               </p>
             </div>
 
             {mySecretSet ? (
               <div className="text-center py-4 sm:py-5 animate-scale-in">
-                <div className="text-3xl sm:text-4xl mb-2">&#x2705;</div>
+                <div className="text-3xl sm:text-4xl mb-2">✅</div>
                 <p className="text-green-600 dark:text-green-400 font-black">Secret locked in!</p>
                 <p className="text-neutral-500 dark:text-neutral-400 text-xs sm:text-sm font-bold mt-1">
                   {opponentSecretSet
@@ -525,7 +525,7 @@ export default function MultiplayerPage() {
                   {opponentName ?? "Opponent"} disconnected
                 </p>
                 <p className="text-amber-600/70 dark:text-amber-500/70 text-xs font-bold">
-                  Waiting for them to rejoin &#x2014; room stays open for 10 min
+                  Waiting for them to rejoin — room stays open for 10 min
                 </p>
               </div>
             </div>
@@ -553,7 +553,7 @@ export default function MultiplayerPage() {
               }`}
             >
               <div className="text-4xl sm:text-5xl">
-                {winner === "me" ? "&#x1F3C6;" : "&#x1F622;"}
+                {winner === "me" ? "🏆" : "😢"}
               </div>
               <p className={`text-xl sm:text-2xl font-black ${winner === "me" ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                 {winner === "me" ? "You Win!" : "You Lose!"}
@@ -625,10 +625,10 @@ export default function MultiplayerPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-sm font-black px-2.5 py-1 rounded-lg border-2 border-black dark:border-amber-500">
-                  &#x1F402; {lastResult.bulls}
+                  🐂 {lastResult.bulls}
                 </span>
                 <span className="flex items-center gap-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 text-sm font-black px-2.5 py-1 rounded-lg border-2 border-black dark:border-teal-500">
-                  &#x1F404; {lastResult.cows}
+                  🐄 {lastResult.cows}
                 </span>
               </div>
             </div>
