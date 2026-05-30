@@ -64,7 +64,8 @@ interface MultiplayerState {
   isMyTurn: boolean;
 }
 
-function getClientId(): string {
+function getClientId(googleId?: string): string {
+  if (googleId) return `g_${googleId}`;
   if (typeof localStorage === "undefined") return crypto.randomUUID();
   let id = localStorage.getItem(STORAGE_CLIENT_ID);
   if (!id) {
@@ -131,7 +132,7 @@ function getUserFriendlyError(errorType: string | null, message: string): string
   return map[errorType ?? ""] ?? message;
 }
 
-export function useMultiplayer() {
+export function useMultiplayer(googleId?: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const [state, setState] = useState<MultiplayerState>(initialState);
   const clientId = useRef<string>("");
@@ -146,8 +147,8 @@ export function useMultiplayer() {
   }, []);
 
   useEffect(() => {
-    clientId.current = getClientId();
-  }, []);
+    clientId.current = getClientId(googleId);
+  }, [googleId]);
 
   const sendMsg = useCallback((type: string, payload: Record<string, unknown> = {}) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return false;

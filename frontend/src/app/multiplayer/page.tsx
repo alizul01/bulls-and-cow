@@ -61,7 +61,7 @@ function MultiplayerContent() {
     makeGuess,
     leaveRoom,
     disconnect,
-  } = useMultiplayer();
+  } = useMultiplayer(user?.id);
 
   const { playGuess, playWin, playLose, playError, playConnected, setEnabled } = useSound();
   const sp = useScratchPad(roomCode);
@@ -107,9 +107,18 @@ function MultiplayerContent() {
   useEffect(() => {
     if (isComplete && !prevIsComplete.current) {
       if (winner === "me") playWin(); else if (winner === "opponent") playLose();
+      // Record stats if authenticated
+      if (user && token) {
+        const base = getBaseUrl();
+        fetch(`${base}/api/stats/game`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ won: winner === "me", guessCount: myGuesses.length }),
+        }).catch(() => {});
+      }
     }
     prevIsComplete.current = isComplete;
-  }, [isComplete, winner, playWin, playLose]);
+  }, [isComplete, winner, playWin, playLose, user, token, myGuesses.length]);
 
   useEffect(() => {
     if (myGuesses.length > prevGuessCount.current && !isComplete) playGuess();

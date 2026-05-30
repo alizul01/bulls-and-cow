@@ -6,8 +6,16 @@ export default function Home() {
   return (
     <div className="min-h-[88vh] flex flex-col gap-5">
       {/* Hero */}
-      <div className="text-center pt-8 pb-2 space-y-2">
-        <div className="text-7xl mb-2 select-none">🐂</div>
+      <div className="text-center pt-8 pb-2 space-y-2 relative">
+        <div className="absolute top-6 right-0">
+          <Link
+            href="/stats"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-zinc-900 border-2 border-black dark:border-zinc-400 text-black dark:text-white font-black text-sm shadow-[2px_2px_0_0_#000] dark:shadow-none btn-push"
+          >
+            {'\uD83D\uDC64'}
+          </Link>
+        </div>
+        <div className="text-7xl mb-2 select-none">{'\uD83D\uDC02'}</div>
         <h1 className="text-5xl font-black tracking-tight text-black dark:text-white uppercase">
           Bulls &amp; Cows
         </h1>

@@ -20,16 +20,16 @@ function getBaseUrl(): string {
 }
 
 function loadStoredUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_USER);
     if (!raw) return null;
     return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(STORAGE_TOKEN);
 }
 

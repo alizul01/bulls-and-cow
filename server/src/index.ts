@@ -3,6 +3,7 @@ import { gameWS } from "./ws/game";
 import { getRoom, cleanupExpiredRooms, getRoomCount, listPublicRooms } from "./store/rooms";
 import { generateDailySecret, isValidNumber } from "./game/logic";
 import { createOrUpdateUser, getUserByToken, removeSession } from "./store/auth";
+import { recordGame, getUserStats } from "./store/stats";
 
 const ROOM_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -105,6 +106,36 @@ const app = new Elysia()
       removeSession(auth.slice(7));
     }
     return { ok: true };
+  })
+  .get("/api/stats", ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth?.startsWith("Bearer ")) {
+      return Response.json({ stats: null }, { status: 401 });
+    }
+    const token = auth.slice(7);
+    const user = getUserByToken(token);
+    if (!user) return Response.json({ stats: null }, { status: 401 });
+    const stats = getUserStats(user.id);
+    return { stats };
+  })
+  .post("/api/stats/game", async ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth?.startsWith("Bearer ")) return Response.json({ ok: false }, { status: 401 });
+    const token = auth.slice(7);
+    const user = getUserByToken(token);
+    if (!user) return Response.json({ ok: false }, { status: 401 });
+
+    try {
+      const body = await request.json() as { won: boolean; guessCount: number; type?: string };
+      if (body.type === "daily") {
+        recordDaily(user.id, body.guessCount ?? 0);
+      } else {
+        recordGame(user.id, body.won ?? false, body.guessCount ?? 0);
+      }
+      return { ok: true };
+    } catch {
+      return Response.json({ ok: false }, { status: 400 });
+    }
   })
   .get("/api/daily", ({ request }) => {
     const today = getTodayKey();
