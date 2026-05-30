@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { GuessEntry } from "@/lib/game-logic";
 
-const SERVER_URL = "ws://localhost:3001/ws";
+const SERVER_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
 const STORAGE_CLIENT_ID = "mp_client_id";
 const STORAGE_ROOM_CODE = "mp_room_code";
 const STORAGE_MY_SECRET = "mp_my_secret";

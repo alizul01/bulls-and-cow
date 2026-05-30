@@ -4,6 +4,7 @@ import { getRoom, cleanupExpiredRooms, getRoomCount } from "./store/rooms";
 
 const ROOM_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const CLEANUP_INTERVAL_MS = 60 * 1000; // run every 1 minute
+const PORT = Number(process.env.PORT ?? 3001);
 
 setInterval(() => {
   const removed = cleanupExpiredRooms(ROOM_TTL_MS);
@@ -31,7 +32,7 @@ const app = new Elysia()
     }
   )
   .listen({
-    port: 3001,
+    port: PORT,
     hostname: "0.0.0.0",
   });
 
