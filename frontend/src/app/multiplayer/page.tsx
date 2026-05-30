@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import NumberInput from "@/components/NumberInput";
 import GuessHistory from "@/components/GuessHistory";
+import Toast from "@/components/Toast";
 import { useMultiplayer } from "@/hooks/useMultiplayer";
+import { useSound } from "@/hooks/useSound";
 
 export default function MultiplayerPage() {
   const {
@@ -37,16 +39,21 @@ export default function MultiplayerPage() {
     disconnect,
   } = useMultiplayer();
 
+  const { playGuess, playWin, playLose, playError, playConnected, setEnabled, isEnabled } = useSound();
+
   const [nameInput, setNameInput] = useState("");
   const [roomInput, setRoomInput] = useState("");
   const [guessInput, setGuessInput] = useState("");
   const [secretInput, setSecretInput] = useState("");
   const [mode, setMode] = useState<"create" | "join" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const prevIsComplete = useRef(false);
+  const prevGuessCount = useRef(0);
 
   useEffect(() => {
     if (copied) {
-      const t = setTimeout(() => setCopied(false), 2000);
+      const t = setTimeout(() => setCopied(false), 1200);
       return () => clearTimeout(t);
     }
   }, [copied]);
@@ -59,12 +66,61 @@ export default function MultiplayerPage() {
     }
   }, [errorType, phase]);
 
+  useEffect(() => {
+    if (error && errorType !== "room_expired" && errorType !== "opponent_left") {
+      playError();
+    }
+  }, [error, errorType, playError]);
+
+  useEffect(() => {
+    if (isComplete && !prevIsComplete.current) {
+      if (winner === "me") playWin();
+      else if (winner === "opponent") playLose();
+    }
+    prevIsComplete.current = isComplete;
+  }, [isComplete, winner, playWin, playLose]);
+
+  useEffect(() => {
+    if (myGuesses.length > prevGuessCount.current && !isComplete) {
+      playGuess();
+    }
+    prevGuessCount.current = myGuesses.length;
+  }, [myGuesses.length, isComplete, playGuess]);
+
+  useEffect(() => {
+    if (status === "connected") {
+      playConnected();
+    }
+  }, [status, playConnected]);
+
+  const handleSoundToggle = useCallback(() => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setEnabled(next);
+  }, [soundOn, setEnabled]);
+
   const handleCopyCode = useCallback(() => {
     if (roomCode) {
       navigator.clipboard.writeText(roomCode);
       setCopied(true);
     }
   }, [roomCode]);
+
+  const handleShareResult = useCallback(() => {
+    if (!isComplete) return;
+    const myName = isHost ? hostName : guestName;
+    const opponentName = isHost ? guestName : hostName;
+    const text = winner === "me"
+      ? `I beat ${opponentName} in Bulls & Cows! I cracked their code in ${myGuesses.length} guesses.`
+      : `${opponentName} beat me in Bulls & Cows... the secret was ${opponentSecret}.`;
+
+    if (navigator.share) {
+      navigator.share({ text, title: "Bulls & Cows" });
+    } else {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+    }
+  }, [isComplete, isHost, hostName, guestName, winner, myGuesses.length, opponentSecret]);
 
   const isConnected = status === "connected";
   const isReconnecting = reconnecting || status === "reconnecting";
@@ -74,39 +130,39 @@ export default function MultiplayerPage() {
   // ===== NOT CONNECTED =====
   if (!isConnected) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-5">
+      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 px-2">
         <div className="text-center space-y-2">
-          <div className="text-6xl mb-2">🌐</div>
-          <h1 className="text-3xl font-black">Multiplayer</h1>
-          <p className="text-gray-500 font-bold text-sm">
+          <div className="text-5xl mb-1">&#127758;</div>
+          <h1 className="text-2xl sm:text-3xl font-black">Multiplayer</h1>
+          <p className="text-gray-500 font-bold text-xs sm:text-sm leading-tight">
             Play Bulls &amp; Cows against a friend
           </p>
         </div>
 
         {isReconnecting && (
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-5 text-center max-w-sm w-full">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 text-center max-w-sm w-full animate-fade-in">
             <div className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-              <p className="text-yellow-300 font-black">Reconnecting...</p>
+              <p className="text-yellow-300 font-black text-sm">Reconnecting...</p>
             </div>
             <p className="text-yellow-500/70 text-xs font-bold mt-1">
-              Connection was lost — trying to restore
+              Connection was lost \u2014 trying to restore
             </p>
           </div>
         )}
 
         {status === "error" && !isReconnecting && (
-          <div className="bg-danger/10 border border-danger/30 rounded-2xl p-5 text-center max-w-sm w-full">
+          <div className="bg-danger/10 border border-danger/30 rounded-2xl p-4 text-center max-w-sm w-full animate-fade-in">
             <p className="text-danger font-black">Connection Failed</p>
-            <p className="text-gray-400 text-sm font-bold mt-1">
+            <p className="text-gray-400 text-xs font-bold mt-1">
               {error ?? "Make sure server is running:"}
             </p>
-            <code className="block bg-surface rounded-xl px-3 py-2 mt-2 text-sm text-gray-300 font-mono">
+            <code className="block bg-surface rounded-xl px-3 py-2 mt-2 text-xs text-gray-300 font-mono">
               cd server &amp;&amp; bun dev
             </code>
             <button
               onClick={connect}
-              className="mt-3 px-5 py-2 bg-primary text-white font-black rounded-xl text-sm"
+              className="mt-3 px-5 py-2 bg-primary text-white font-black rounded-xl text-sm btn-push"
             >
               Retry Connection
             </button>
@@ -116,7 +172,7 @@ export default function MultiplayerPage() {
         <button
           onClick={connect}
           disabled={status === "connecting" || isReconnecting}
-          className="px-8 py-4 bg-primary disabled:opacity-50 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center gap-2"
+          className="px-8 py-3.5 bg-primary disabled:opacity-50 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center gap-2 text-sm"
         >
           {status === "connecting" || isReconnecting ? (
             <>
@@ -129,7 +185,7 @@ export default function MultiplayerPage() {
         </button>
 
         <Link href="/" className="text-sm text-gray-600 hover:text-gray-400 font-bold">
-          ← Back
+          \u2190 Back
         </Link>
       </div>
     );
@@ -141,25 +197,45 @@ export default function MultiplayerPage() {
   const showGame = phase === "playing" || phase === "finished";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
+      <Toast
+        message="Copied!"
+        visible={copied}
+        variant="success"
+        duration={1600}
+      />
+      <Toast
+        message="Connected!"
+        visible={status === "connected" && phase === "idle"}
+        variant="success"
+        duration={1500}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Link
           href="/"
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-surface text-gray-400 font-black text-lg active:scale-90 transition-transform"
+          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-surface text-gray-400 font-black text-lg active:scale-90 transition-transform"
         >
-          ‹
+          \u2039
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={handleSoundToggle}
+            className="text-sm px-2 py-1 rounded-lg bg-surface hover:bg-surface-light transition-colors"
+            title={soundOn ? "Mute sounds" : "Enable sounds"}
+          >
+            {soundOn ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
+          </button>
           {isReconnecting ? (
             <span className="flex items-center gap-1.5 text-xs font-bold text-yellow-400">
               <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-              Reconnecting...
+              <span className="hidden sm:inline">Reconnecting...</span>
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs font-bold">
               <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              <span className="text-gray-500">Online</span>
+              <span className="text-gray-500 hidden sm:inline">Online</span>
             </span>
           )}
           {!showLobby && (
@@ -174,35 +250,33 @@ export default function MultiplayerPage() {
             onClick={disconnect}
             className="text-xs text-gray-600 hover:text-gray-400 font-bold"
           >
-            Disconnect
+            Discon
           </button>
         </div>
       </div>
 
       {/* Title */}
       <div className="text-center space-y-1">
-        <h1 className="text-2xl font-black">Multiplayer 🌐</h1>
+        <h1 className="text-xl sm:text-2xl font-black">Multiplayer</h1>
         <p className="text-gray-500 text-xs font-bold">
-          Each player sets a secret — race to crack the other&apos;s!
+          Each player sets a secret \u2014 race to crack the other&apos;s!
         </p>
       </div>
 
       {error && (
-        <div className={`rounded-xl px-4 py-3 border flex items-start gap-2 ${
+        <div className={`rounded-xl px-3.5 py-3 border flex items-start gap-2 animate-shake ${
           errorType === "room_expired"
             ? "bg-amber-500/10 border-amber-500/30"
             : "bg-danger/10 border-danger/30"
         }`}>
-          <span className="shrink-0 text-sm mt-0.5">⚠</span>
+          <span className="shrink-0 text-sm mt-0.5">\u26A0</span>
           <div>
             <p className={`text-sm font-black ${errorType === "room_expired" ? "text-amber-300" : "text-danger"}`}>
               {error}
             </p>
             {errorType === "room_expired" && (
               <button
-                onClick={() => {
-                  setMode(null);
-                }}
+                onClick={() => setMode(null)}
                 className="text-xs text-amber-400 font-bold underline mt-1"
               >
                 Go to Lobby
@@ -214,7 +288,7 @@ export default function MultiplayerPage() {
 
       {/* LOBBY */}
       {showLobby && (
-        <div className="bg-surface border border-surface-light rounded-2xl p-5 space-y-4">
+        <div className="bg-surface border border-surface-light rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4 animate-fade-in">
           <div>
             <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
               Your Name
@@ -226,6 +300,10 @@ export default function MultiplayerPage() {
               placeholder="Enter your name"
               maxLength={20}
               className="w-full bg-surface-light border border-surface-light rounded-xl px-4 py-3 text-white font-bold focus:border-primary focus:outline-none transition-colors placeholder:text-gray-600"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nameInput.trim() && !mode) setMode("create");
+                if (e.key === "Enter" && nameInput.trim() && mode === "create") createRoom(nameInput);
+              }}
             />
           </div>
 
@@ -234,14 +312,14 @@ export default function MultiplayerPage() {
               <button
                 onClick={() => setMode("create")}
                 disabled={!nameInput.trim()}
-                className="py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push"
+                className="py-3.5 sm:py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push text-sm sm:text-base"
               >
                 Create Room
               </button>
               <button
                 onClick={() => setMode("join")}
                 disabled={!nameInput.trim()}
-                className="py-4 bg-surface-light disabled:opacity-40 text-white font-black rounded-2xl active:scale-95 transition-transform"
+                className="py-3.5 sm:py-4 bg-surface-light disabled:opacity-40 text-white font-black rounded-2xl active:scale-95 transition-transform text-sm sm:text-base"
               >
                 Join Room
               </button>
@@ -251,12 +329,12 @@ export default function MultiplayerPage() {
               <button
                 onClick={() => createRoom(nameInput)}
                 disabled={isSubmitting}
-                className="w-full py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2"
+                className="w-full py-3.5 sm:py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {isSubmitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating...
+                    Creating room...
                   </>
                 ) : (
                   "Create Room"
@@ -265,7 +343,7 @@ export default function MultiplayerPage() {
               <button
                 onClick={() => setMode(null)}
                 disabled={isSubmitting}
-                className="w-full py-3 text-sm text-gray-500 font-bold hover:text-gray-300"
+                className="w-full py-2.5 text-xs text-gray-500 font-bold hover:text-gray-300"
               >
                 Cancel
               </button>
@@ -282,18 +360,21 @@ export default function MultiplayerPage() {
                   onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                   placeholder="XXXXX"
                   maxLength={5}
-                  className="w-full bg-surface-light border border-surface-light rounded-xl px-4 py-4 text-white text-center text-2xl tracking-[0.4em] font-black font-mono focus:border-primary focus:outline-none transition-colors placeholder:text-gray-700"
+                  className="w-full bg-surface-light border border-surface-light rounded-xl px-4 py-3.5 sm:py-4 text-white text-center text-xl sm:text-2xl tracking-[0.3em] sm:tracking-[0.4em] font-black font-mono focus:border-primary focus:outline-none transition-colors placeholder:text-gray-700"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && roomInput.length === 5 && !isSubmitting) joinRoom(roomInput, nameInput);
+                  }}
                 />
               </div>
               <button
                 onClick={() => joinRoom(roomInput, nameInput)}
                 disabled={roomInput.length !== 5 || isSubmitting}
-                className="w-full py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2"
+                className="w-full py-3.5 sm:py-4 bg-primary disabled:opacity-40 text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {isSubmitting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Joining...
+                    Joining room...
                   </>
                 ) : (
                   "Join Room"
@@ -302,7 +383,7 @@ export default function MultiplayerPage() {
               <button
                 onClick={() => setMode(null)}
                 disabled={isSubmitting}
-                className="w-full py-3 text-sm text-gray-500 font-bold hover:text-gray-300"
+                className="w-full py-2.5 text-xs text-gray-500 font-bold hover:text-gray-300"
               >
                 Cancel
               </button>
@@ -313,19 +394,19 @@ export default function MultiplayerPage() {
 
       {/* WAITING FOR OPPONENT */}
       {showWaiting && (
-        <div className="bg-surface border border-surface-light rounded-2xl p-8 text-center space-y-5">
-          <div className="w-12 h-12 mx-auto border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="bg-surface border border-surface-light rounded-2xl p-6 sm:p-8 text-center space-y-4 sm:space-y-5 animate-scale-in">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
           <div>
-            <p className="text-lg font-black">Waiting for opponent...</p>
-            <p className="text-gray-500 text-sm font-bold mt-1">
+            <p className="text-base sm:text-lg font-black">Waiting for opponent...</p>
+            <p className="text-gray-500 text-xs sm:text-sm font-bold mt-1">
               Share this code with your friend
             </p>
           </div>
-          <div className="bg-primary/10 border border-primary/30 rounded-2xl p-5 inline-block">
+          <div className="bg-primary/10 border border-primary/30 rounded-2xl p-4 sm:p-5 inline-block">
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
               Room Code
             </p>
-            <p className="text-5xl font-black font-mono tracking-[0.3em] text-primary">
+            <p className="text-3xl sm:text-5xl font-black font-mono tracking-[0.2em] sm:tracking-[0.3em] text-primary">
               {roomCode}
             </p>
           </div>
@@ -333,22 +414,22 @@ export default function MultiplayerPage() {
             onClick={handleCopyCode}
             className="px-5 py-2.5 text-sm font-black bg-surface-light hover:bg-indigo-800 rounded-xl active:scale-95 transition-all"
           >
-            {copied ? "✓ Copied!" : "Copy Code"}
+            Copy Code
           </button>
         </div>
       )}
 
       {/* SETTING SECRET */}
       {showSetting && (
-        <div className="space-y-4">
-          <div className="bg-surface border border-surface-light rounded-2xl p-4 flex items-center justify-between">
-            <div>
+        <div className="space-y-3 sm:space-y-4 animate-fade-in">
+          <div className="bg-surface border border-surface-light rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-2">
+            <div className="min-w-0">
               <p className="text-xs text-gray-500 font-bold">Room</p>
-              <p className="font-mono font-black text-lg tracking-widest">{roomCode}</p>
+              <p className="font-mono font-black text-base sm:text-lg tracking-widest truncate">{roomCode}</p>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="text-xs text-gray-500 font-bold">Players</p>
-              <p className="text-sm font-black">
+              <p className="text-xs sm:text-sm font-black">
                 <span className="text-primary">{hostName}</span>
                 {guestName && (
                   <>
@@ -360,19 +441,19 @@ export default function MultiplayerPage() {
             </div>
           </div>
 
-          <div className="bg-surface border border-surface-light rounded-2xl p-5 space-y-4">
+          <div className="bg-surface border border-surface-light rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4">
             <div>
-              <h2 className="text-lg font-black">Set Your Secret 🔒</h2>
-              <p className="text-sm text-gray-500 font-bold mt-1">
-                Pick a 4-digit number — your opponent will try to crack it!
+              <h2 className="text-base sm:text-lg font-black">Set Your Secret</h2>
+              <p className="text-xs sm:text-sm text-gray-500 font-bold mt-1">
+                Pick a 4-digit number \u2014 your opponent will try to crack it!
               </p>
             </div>
 
             {mySecretSet ? (
-              <div className="text-center py-5">
-                <div className="text-4xl mb-2">✅</div>
+              <div className="text-center py-4 sm:py-5 animate-scale-in">
+                <div className="text-3xl sm:text-4xl mb-2">\u2705</div>
                 <p className="text-success font-black">Secret locked in!</p>
-                <p className="text-gray-500 text-sm font-bold mt-1">
+                <p className="text-gray-500 text-xs sm:text-sm font-bold mt-1">
                   {opponentSecretSet
                     ? "Starting game..."
                     : `Waiting for ${opponentName} to set their secret...`}
@@ -387,7 +468,7 @@ export default function MultiplayerPage() {
                     setSecretInput("");
                   }}
                   disabled={secretInput.length !== 4 || isSubmitting}
-                  className="w-full py-4 bg-primary disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2"
+                  className="w-full py-3.5 sm:py-4 bg-primary disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
                   {isSubmitting ? (
                     <>
@@ -395,16 +476,16 @@ export default function MultiplayerPage() {
                       Locking in...
                     </>
                   ) : (
-                    "Lock In Secret 🔒"
+                    "Lock In Secret"
                   )}
                 </button>
               </>
             )}
 
-            <div className="flex items-center gap-4 text-xs font-bold">
+            <div className="flex items-center gap-3 sm:gap-4 text-xs font-bold">
               <span className={`flex items-center gap-1.5 ${mySecretSet ? "text-success" : "text-gray-600"}`}>
                 <span className={`w-2 h-2 rounded-full ${mySecretSet ? "bg-success" : "bg-gray-700"}`} />
-                You: {mySecretSet ? "ready ✓" : "setting..."}
+                You: {mySecretSet ? "ready" : "setting..."}
               </span>
               <span
                 className={`flex items-center gap-1.5 ${
@@ -417,7 +498,7 @@ export default function MultiplayerPage() {
                   }`}
                 />
                 {opponentName ?? "Opponent"}:{" "}
-                {!opponentOnline ? "disconnected" : opponentSecretSet ? "ready ✓" : "setting..."}
+                {!opponentOnline ? "disconnected" : opponentSecretSet ? "ready" : "setting..."}
               </span>
             </div>
           </div>
@@ -426,30 +507,30 @@ export default function MultiplayerPage() {
 
       {/* GAME */}
       {showGame && (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
           {/* Room + players */}
-          <div className="bg-surface border border-surface-light rounded-2xl p-4 flex items-center justify-between">
-            <div>
+          <div className="bg-surface border border-surface-light rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-2">
+            <div className="min-w-0">
               <p className="text-xs text-gray-500 font-bold">Room</p>
-              <p className="font-mono font-black text-lg tracking-widest">{roomCode}</p>
+              <p className="font-mono font-black text-base sm:text-lg tracking-widest truncate">{roomCode}</p>
             </div>
-            <div className="text-center px-4">
-              <span className="text-primary font-black">{hostName}</span>
-              <span className="text-gray-600 font-black mx-2">vs</span>
-              <span className="text-accent font-black">{guestName}</span>
+            <div className="text-center px-2 sm:px-4 shrink-0">
+              <span className="text-primary font-black text-sm">{hostName}</span>
+              <span className="text-gray-600 font-black mx-1.5 sm:mx-2 text-sm">vs</span>
+              <span className="text-accent font-black text-sm">{guestName}</span>
             </div>
           </div>
 
           {/* Opponent offline */}
           {!opponentOnline && !isComplete && (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in">
               <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shrink-0" />
               <div>
                 <p className="text-yellow-300 text-sm font-black">
                   {opponentName ?? "Opponent"} disconnected
                 </p>
                 <p className="text-yellow-500/70 text-xs font-bold">
-                  Waiting for them to rejoin — room stays open for 10 min
+                  Waiting for them to rejoin \u2014 room stays open for 10 min
                 </p>
               </div>
             </div>
@@ -457,11 +538,11 @@ export default function MultiplayerPage() {
 
           {/* My secret */}
           {mySecret && (
-            <div className="bg-surface border border-surface-light rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="bg-surface border border-surface-light rounded-xl px-4 py-2.5 flex items-center justify-between">
               <p className="text-xs text-gray-500 font-black uppercase tracking-widest">
                 Your Secret
               </p>
-              <p className="font-mono font-black text-lg tracking-widest text-accent">
+              <p className="font-mono font-black text-base sm:text-lg tracking-widest text-accent">
                 {mySecret}
               </p>
             </div>
@@ -470,14 +551,16 @@ export default function MultiplayerPage() {
           {/* Result banner */}
           {isComplete && (
             <div
-              className={`rounded-2xl p-6 text-center space-y-3 border ${
+              className={`rounded-2xl p-5 sm:p-6 text-center space-y-3 border ${
                 winner === "me"
-                  ? "bg-success/10 border-success/30"
-                  : "bg-danger/10 border-danger/30"
+                  ? "bg-success/10 border-success/30 animate-bounce-in animate-pulse-win"
+                  : "bg-danger/10 border-danger/30 animate-bounce-in animate-pulse-lose"
               }`}
             >
-              <div className="text-5xl">{winner === "me" ? "🏆" : "😢"}</div>
-              <p className={`text-2xl font-black ${winner === "me" ? "text-success" : "text-danger"}`}>
+              <div className="text-4xl sm:text-5xl">
+                {winner === "me" ? "\uD83C\uDFC6" : "\uD83D\uDE22"}
+              </div>
+              <p className={`text-xl sm:text-2xl font-black ${winner === "me" ? "text-success" : "text-danger"}`}>
                 {winner === "me" ? "You Win!" : "You Lose!"}
               </p>
               {opponentSecret && (
@@ -496,40 +579,62 @@ export default function MultiplayerPage() {
                   </span>
                 </p>
               </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                <button
+                  onClick={() => leaveRoom(roomCode)}
+                  className="px-4 py-2.5 bg-primary text-white font-black rounded-xl text-sm shadow-[0_3px_0_0_#4c1d95] btn-push"
+                >
+                  Play Again
+                </button>
+                <button
+                  onClick={handleShareResult}
+                  className="px-4 py-2.5 bg-surface-light text-white font-black rounded-xl text-sm border border-surface-light active:scale-95 transition-transform"
+                >
+                  Share Result
+                </button>
+                <Link
+                  href="/"
+                  className="px-4 py-2.5 bg-surface text-gray-400 font-black rounded-xl text-sm border border-surface-light hover:text-gray-200 transition-colors"
+                >
+                  Lobby
+                </Link>
+              </div>
             </div>
           )}
 
           {/* Score comparison */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-surface border border-primary/30 rounded-2xl p-4 text-center">
+            <div className="bg-surface border border-primary/30 rounded-2xl p-3 sm:p-4 text-center">
               <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">
                 {myName ?? "You"}
               </p>
-              <p className="text-3xl font-black text-primary">{myGuesses.length}</p>
+              <p className="text-2xl sm:text-3xl font-black text-primary">{myGuesses.length}</p>
               <p className="text-xs text-gray-600 font-bold">guesses</p>
             </div>
-            <div className="bg-surface border border-accent/30 rounded-2xl p-4 text-center">
+            <div className="bg-surface border border-accent/30 rounded-2xl p-3 sm:p-4 text-center">
               <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">
                 {opponentName ?? "Opponent"}
               </p>
-              <p className="text-3xl font-black text-accent">{opponentGuesses.length}</p>
+              <p className="text-2xl sm:text-3xl font-black text-accent">{opponentGuesses.length}</p>
               <p className="text-xs text-gray-600 font-bold">guesses</p>
             </div>
           </div>
 
           {/* Last result */}
           {lastResult && (
-            <div className="bg-surface border border-surface-light rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="bg-surface border border-surface-light rounded-xl px-4 py-3 flex items-center justify-between animate-slide-up">
               <div>
                 <p className="text-xs text-gray-500 font-bold">Last Guess</p>
-                <p className="text-xl font-mono font-black tracking-widest">{lastResult.guess}</p>
+                <p className="text-lg sm:text-xl font-mono font-black tracking-widest">{lastResult.guess}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1 bg-amber-500/20 text-amber-400 text-sm font-black px-2.5 py-1 rounded-lg border border-amber-500/30">
-                  🐂{lastResult.bulls}
+                  {lastResult.bulls}
                 </span>
                 <span className="flex items-center gap-1 bg-teal-500/20 text-teal-400 text-sm font-black px-2.5 py-1 rounded-lg border border-teal-500/30">
-                  🐄{lastResult.cows}
+                  {lastResult.cows}
                 </span>
               </div>
             </div>
@@ -537,7 +642,7 @@ export default function MultiplayerPage() {
 
           {/* Guess input */}
           {!isComplete && (
-            <div className="bg-surface border border-surface-light rounded-2xl p-5 space-y-4">
+            <div className="bg-surface border border-surface-light rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4">
               <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">
                 Guess {opponentName ? `${opponentName}'s` : "Opponent's"} Secret
               </h2>
@@ -553,7 +658,7 @@ export default function MultiplayerPage() {
                   setGuessInput("");
                 }}
                 disabled={guessInput.length !== 4 || isComplete || isSubmitting}
-                className="w-full py-4 bg-primary disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push text-base flex items-center justify-center gap-2"
+                className="w-full py-3.5 sm:py-4 bg-primary disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl shadow-[0_4px_0_0_#4c1d95] btn-push flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {isSubmitting ? (
                   <>
@@ -568,15 +673,15 @@ export default function MultiplayerPage() {
           )}
 
           {/* Histories */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="bg-surface border border-primary/20 rounded-2xl p-4">
-              <h2 className="text-xs font-black text-primary uppercase tracking-widest mb-3">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
+            <div className="bg-surface border border-primary/20 rounded-2xl p-3 sm:p-4">
+              <h2 className="text-xs font-black text-primary uppercase tracking-widest mb-2 sm:mb-3">
                 Your Guesses ({myGuesses.length})
               </h2>
               <GuessHistory guesses={myGuesses} />
             </div>
-            <div className="bg-surface border border-accent/20 rounded-2xl p-4">
-              <h2 className="text-xs font-black text-accent uppercase tracking-widest mb-3">
+            <div className="bg-surface border border-accent/20 rounded-2xl p-3 sm:p-4">
+              <h2 className="text-xs font-black text-accent uppercase tracking-widest mb-2 sm:mb-3">
                 {opponentName ?? "Opponent"}&apos;s Guesses ({opponentGuesses.length})
               </h2>
               <GuessHistory guesses={opponentGuesses} />

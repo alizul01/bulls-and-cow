@@ -38,6 +38,6 @@ setInterval(() => {
   }
 }, CLEANUP_INTERVAL_MS);
 
-console.log(`🟢 Bulls & Cows server running at http://localhost:${app.server?.port}`);
+console.log(`[OK] Bulls & Cows server running at http://localhost:${app.server?.port}`);
 
 export type App = typeof app;
