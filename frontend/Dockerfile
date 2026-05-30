@@ -7,6 +7,9 @@ RUN bun install --frozen-lockfile
 FROM oven/bun:1 AS builder
 WORKDIR /app
 
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ARG NEXT_PUBLIC_WS_URL
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN bun run build

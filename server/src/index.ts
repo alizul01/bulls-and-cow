@@ -23,7 +23,14 @@ async function verifyGoogleToken(idToken: string): Promise<{ sub: string; name: 
     const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
     if (!res.ok) return null;
     const data = await res.json();
-    if (!data.sub) return null;
+    if (!data.sub || !data.email_verified) return null;
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (clientId && data.aud !== clientId) {
+      console.log(`[Auth] Token audience mismatch: ${data.aud} !== ${clientId}`);
+      return null;
+    }
+
     return {
       sub: data.sub,
       name: data.name ?? "Player",
