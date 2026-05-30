@@ -11,6 +11,7 @@ interface NumberInputProps {
   label?: string;
   error?: string;
   autoFocus?: boolean;
+  allowDuplicates?: boolean;
 }
 
 export default function NumberInput({
@@ -22,7 +23,10 @@ export default function NumberInput({
   label,
   error,
   autoFocus = false,
+  allowDuplicates = false,
 }: NumberInputProps) {
+
+  const gridCols = length <= 4 ? "grid-cols-4" : length <= 5 ? "grid-cols-5" : length <= 6 ? "grid-cols-6" : "grid-cols-7";
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -45,8 +49,12 @@ export default function NumberInput({
           value={value}
           onChange={(e) => {
             const raw = e.target.value.replace(/\D/g, "");
-            const unique = [...new Set(raw.split(""))].join("");
-            onChange(unique.slice(0, length));
+            if (allowDuplicates) {
+              onChange(raw.slice(0, length));
+            } else {
+              const unique = [...new Set(raw.split(""))].join("");
+              onChange(unique.slice(0, length));
+            }
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -57,7 +65,7 @@ export default function NumberInput({
         />
 
         <div
-          className="grid grid-cols-4 gap-2.5"
+          className={`grid ${gridCols} gap-2 sm:gap-2.5`}
           onClick={() => inputRef.current?.focus()}
         >
           {digits.map((digit, i) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { GuessEntry } from "@/lib/game-logic";
+import type { GuessEntry, RoomSettings } from "@/lib/game-logic";
 
 function getServerUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
@@ -29,6 +29,13 @@ type GamePhase =
   | "playing"
   | "finished";
 
+const defaultSettings: RoomSettings = {
+  gameMode: "free",
+  digitLength: 4,
+  allowDuplicates: false,
+  maxAttempts: 0,
+};
+
 interface MultiplayerState {
   status: ConnectionStatus;
   phase: GamePhase;
@@ -51,7 +58,7 @@ interface MultiplayerState {
   lastResult: { guess: string; bulls: number; cows: number } | null;
   isSubmitting: boolean;
   reconnecting: boolean;
-  gameMode: GameMode;
+  settings: RoomSettings;
   currentTurn: TurnPlayer | null;
   isMyTurn: boolean;
 }
@@ -88,12 +95,22 @@ const initialState: MultiplayerState = {
   lastResult: null,
   isSubmitting: false,
   reconnecting: false,
-  gameMode: "free",
+  settings: defaultSettings,
   currentTurn: null,
   isMyTurn: true,
 };
 
 type GuessList = { guess: string; bulls: number; cows: number }[];
+
+function readSettings(payload: any, fallback: RoomSettings = defaultSettings): RoomSettings {
+  const s = (payload.settings as Record<string, unknown>) ?? {};
+  return {
+    gameMode: (s.gameMode as GameMode) ?? fallback.gameMode,
+    digitLength: (payload.digitLength as number) ?? (s.digitLength as number) ?? fallback.digitLength,
+    allowDuplicates: (s.allowDuplicates as boolean) ?? fallback.allowDuplicates,
+    maxAttempts: (s.maxAttempts as number) ?? fallback.maxAttempts,
+  };
+}
 
 function getUserFriendlyError(errorType: string | null, message: string): string {
   const map: Record<string, string> = {
@@ -120,10 +137,9 @@ export function useMultiplayer() {
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const shouldReconnect = useRef(false);
-  const sentMessages = useRef<Set<string>>(new Set());
 
-  const deriveIsMyTurn = useCallback((gameMode: GameMode, currentTurn: TurnPlayer | null, isHost: boolean): boolean => {
-    if (gameMode !== "turns") return true;
+  const deriveIsMyTurn = useCallback((settings: RoomSettings, currentTurn: TurnPlayer | null, isHost: boolean): boolean => {
+    if (settings.gameMode !== "turns") return true;
     return currentTurn === (isHost ? "host" : "guest");
   }, []);
 
@@ -133,10 +149,7 @@ export function useMultiplayer() {
 
   const sendMsg = useCallback((type: string, payload: Record<string, unknown> = {}) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
-
     const messageId = crypto.randomUUID();
-    sentMessages.current.add(messageId);
-
     wsRef.current.send(JSON.stringify({
       type,
       payload: { ...payload, clientId: clientId.current, messageId },
@@ -169,14 +182,11 @@ export function useMultiplayer() {
 
   const scheduleReconnect = useCallback(() => {
     if (!shouldReconnect.current) return;
-
     const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30_000);
     const jitter = delay * 0.3 * Math.random();
     const wait = delay + jitter;
-
     retryCount.current++;
     setState((prev) => ({ ...prev, reconnecting: true, error: null }));
-
     retryTimer.current = setTimeout(() => {
       retryTimer.current = null;
       doConnect();
@@ -185,7 +195,6 @@ export function useMultiplayer() {
 
   const doConnect = useCallback(() => {
     clearRetry();
-
     const ws = new WebSocket(getServerUrl());
     wsRef.current = ws;
 
@@ -199,7 +208,6 @@ export function useMultiplayer() {
         error: null,
         errorType: null,
       }));
-
       const savedCode = localStorage.getItem(STORAGE_ROOM_CODE);
       if (savedCode) {
         ws.send(JSON.stringify({
@@ -211,14 +219,13 @@ export function useMultiplayer() {
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
-
-      // P0-7: heartbeat
       if (msg.type === "pong") return;
 
       setState((prev) => {
         switch (msg.type) {
           case "room_created": {
             const code = msg.payload.code as string;
+            const settings = readSettings(msg.payload);
             localStorage.setItem(STORAGE_ROOM_CODE, code);
             shouldReconnect.current = true;
             return {
@@ -227,13 +234,9 @@ export function useMultiplayer() {
               roomCode: code,
               hostName: msg.payload.hostName as string,
               isHost: true,
-              gameMode: ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? "free"),
+              settings,
               currentTurn: (msg.payload.currentTurn as TurnPlayer | null) ?? null,
-              isMyTurn: deriveIsMyTurn(
-                ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? "free"),
-                (msg.payload.currentTurn as TurnPlayer | null) ?? null,
-                true
-              ),
+              isMyTurn: deriveIsMyTurn(settings, (msg.payload.currentTurn as TurnPlayer | null) ?? null, true),
               error: null,
               errorType: null,
               isSubmitting: false,
@@ -242,6 +245,7 @@ export function useMultiplayer() {
 
           case "join_success": {
             const code = msg.payload.code as string;
+            const settings = readSettings(msg.payload);
             localStorage.setItem(STORAGE_ROOM_CODE, code);
             shouldReconnect.current = true;
             return {
@@ -251,13 +255,9 @@ export function useMultiplayer() {
               hostName: msg.payload.hostName as string,
               guestName: msg.payload.guestName as string,
               isHost: false,
-              gameMode: ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? "free"),
+              settings,
               currentTurn: (msg.payload.currentTurn as TurnPlayer | null) ?? null,
-              isMyTurn: deriveIsMyTurn(
-                ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? "free"),
-                (msg.payload.currentTurn as TurnPlayer | null) ?? null,
-                false
-              ),
+              isMyTurn: deriveIsMyTurn(settings, (msg.payload.currentTurn as TurnPlayer | null) ?? null, false),
               opponentOnline: true,
               error: null,
               errorType: null,
@@ -274,23 +274,22 @@ export function useMultiplayer() {
               isSubmitting: false,
             };
 
-          case "opponent_joined":
+          case "opponent_joined": {
+            const settings = readSettings(msg.payload, prev.settings);
             return {
               ...prev,
               phase: "setting_secret",
               guestName: msg.payload.guestName as string,
-              gameMode: ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? prev.gameMode),
+              settings,
               currentTurn: (msg.payload.currentTurn as TurnPlayer | null) ?? prev.currentTurn,
-              isMyTurn: deriveIsMyTurn(
-                ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? prev.gameMode),
-                (msg.payload.currentTurn as TurnPlayer | null) ?? prev.currentTurn,
-                prev.isHost
-              ),
+              isMyTurn: deriveIsMyTurn(settings, (msg.payload.currentTurn as TurnPlayer | null) ?? prev.currentTurn, prev.isHost),
               opponentOnline: true,
             };
+          }
 
           case "rejoined": {
             const p = msg.payload;
+            const settings = readSettings(p);
             const phaseMap: Record<string, GamePhase> = {
               waiting: "waiting",
               setting: "setting_secret",
@@ -303,14 +302,11 @@ export function useMultiplayer() {
             const opponentGuesses: GuessEntry[] = (p.opponentGuesses as GuessList).map(
               (g, i) => ({ id: i + 1, guess: g.guess, bulls: g.bulls, cows: g.cows })
             );
-
             const mySecret = (p.mySecret as string | null) ?? localStorage.getItem(STORAGE_MY_SECRET);
             if (mySecret) localStorage.setItem(STORAGE_MY_SECRET, mySecret);
-
             shouldReconnect.current = true;
-            const gameMode = ((p.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? "free");
-            const currentTurn = (p.currentTurn as TurnPlayer | null) ?? null;
             const isHost = p.isHost as boolean;
+            const currentTurn = (p.currentTurn as TurnPlayer | null) ?? null;
 
             return {
               ...prev,
@@ -324,18 +320,18 @@ export function useMultiplayer() {
               mySecretSet: p.mySecretSet as boolean,
               opponentSecretSet: p.opponentSecretSet as boolean,
               mySecret,
+              settings,
+              currentTurn,
+              isMyTurn: deriveIsMyTurn(settings, currentTurn, isHost),
               winner:
                 p.winner === "host"
-                  ? (p.isHost ? "me" : "opponent")
+                  ? (isHost ? "me" : "opponent")
                   : p.winner === "guest"
-                  ? (p.isHost ? "opponent" : "me")
+                  ? (isHost ? "opponent" : "me")
                   : null,
               isComplete: p.phase === "finished",
               opponentSecret: (p.opponentSecret as string | null) ?? null,
               opponentOnline: true,
-              gameMode,
-              currentTurn,
-              isMyTurn: deriveIsMyTurn(gameMode, currentTurn, isHost),
               error: null,
               errorType: null,
               reconnecting: false,
@@ -349,21 +345,20 @@ export function useMultiplayer() {
           case "opponent_secret_set":
             return { ...prev, opponentSecretSet: true };
 
-          case "game_started":
-            {
-              const gameMode = ((msg.payload.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? prev.gameMode);
-              const currentTurn = (msg.payload.currentTurn as TurnPlayer | null) ?? prev.currentTurn;
-              return {
-                ...prev,
-                phase: "playing",
-                mySecretSet: true,
-                opponentSecretSet: true,
-                isSubmitting: false,
-                gameMode,
-                currentTurn,
-                isMyTurn: deriveIsMyTurn(gameMode, currentTurn, prev.isHost),
-              };
-            }
+          case "game_started": {
+            const settings = readSettings(msg.payload, prev.settings);
+            const currentTurn = (msg.payload.currentTurn as TurnPlayer | null) ?? prev.currentTurn;
+            return {
+              ...prev,
+              phase: "playing",
+              mySecretSet: true,
+              opponentSecretSet: true,
+              isSubmitting: false,
+              settings,
+              currentTurn,
+              isMyTurn: deriveIsMyTurn(settings, currentTurn, prev.isHost),
+            };
+          }
 
           case "guess_result": {
             const p = msg.payload;
@@ -380,7 +375,7 @@ export function useMultiplayer() {
                 : p.winner === "guest"
                 ? prev.isHost ? "opponent" : "me"
                 : null;
-            const gameMode = ((p.settings as { gameMode?: GameMode } | undefined)?.gameMode ?? prev.gameMode);
+            const settings = readSettings(p, prev.settings);
             const currentTurn = (p.currentTurn as TurnPlayer | null) ?? prev.currentTurn;
 
             return {
@@ -394,9 +389,9 @@ export function useMultiplayer() {
               winner: winner ?? prev.winner,
               opponentSecret: (p.opponentSecret as string | null) ?? prev.opponentSecret,
               phase: p.winner ? "finished" : prev.phase,
-              gameMode,
+              settings,
               currentTurn,
-              isMyTurn: deriveIsMyTurn(gameMode, currentTurn, prev.isHost),
+              isMyTurn: deriveIsMyTurn(settings, currentTurn, prev.isHost),
               isSubmitting: false,
               error: null,
               errorType: null,
@@ -482,7 +477,6 @@ export function useMultiplayer() {
         reconnecting: false,
         isSubmitting: false,
       }));
-
       if (shouldReconnect.current) {
         scheduleReconnect();
       }
@@ -491,16 +485,15 @@ export function useMultiplayer() {
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
     shouldReconnect.current = true;
     retryCount.current = 0;
     setState((prev) => ({ ...prev, status: "connecting", error: null, errorType: null }));
     doConnect();
   }, [doConnect]);
 
-  const createRoom = useCallback((playerName: string, gameMode: GameMode = "free") => {
+  const createRoom = useCallback((playerName: string, settings?: Partial<RoomSettings>) => {
     setState((prev) => ({ ...prev, playerName, phase: "creating", error: null, errorType: null, isSubmitting: true }));
-    sendMsg("create_room", { name: playerName, gameMode });
+    sendMsg("create_room", { name: playerName, ...settings });
   }, [sendMsg]);
 
   const joinRoom = useCallback((roomCode: string, playerName: string) => {

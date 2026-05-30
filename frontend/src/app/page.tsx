@@ -50,7 +50,26 @@ export default function Home() {
               Computer picks a secret — crack it!
             </p>
           </div>
-          <span className="ml-auto text-white/50 text-2xl shrink-0 font-black">›</span>
+          <span className="ml-auto text-white/50 text-2xl shrink-0 font-black">{'\u203A'}</span>
+        </Link>
+
+        <Link
+          href="/daily"
+          className="relative flex items-center gap-4 p-5 rounded-2xl bg-amber-500 dark:bg-amber-600 border-2 border-black shadow-[4px_4px_0_0_#000] btn-push text-white"
+        >
+          <span className="absolute top-3 right-3 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-white text-black border border-black tracking-wide uppercase">
+            New
+          </span>
+          <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-3xl shrink-0">
+            {'\u2600'}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-xl font-black">Daily Challenge</h2>
+            <p className="text-white/75 text-sm font-bold mt-0.5">
+              Same secret for everyone today
+            </p>
+          </div>
+          <span className="ml-auto text-white/50 text-2xl shrink-0 font-black">{'\u203A'}</span>
         </Link>
 
         <Link
