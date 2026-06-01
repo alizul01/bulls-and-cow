@@ -3,7 +3,7 @@ import { gameWS } from "./ws/game";
 import { getRoom, cleanupExpiredRooms, getRoomCount, listPublicRooms } from "./store/rooms";
 import { generateDailySecret, isValidNumber } from "./game/logic";
 import { createOrUpdateUser, getUserByToken, removeSession } from "./store/auth";
-import { recordGame, getUserStats } from "./store/stats";
+import { recordGame, getUserStats, recordDaily } from "./store/stats";
 
 const ROOM_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;

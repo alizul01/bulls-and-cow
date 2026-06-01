@@ -431,7 +431,7 @@ function MultiplayerContent() {
                 <input
                   type="text" value={roomInput} onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                   placeholder="XXXXX" maxLength={5}
-                  className="w-full bg-neutral-50 dark:bg-zinc-800 border-2 border-neutral-200 dark:border-zinc-600 rounded-xl px-4 py-3.5 sm:py-4 text-white text-center text-xl sm:text-2xl tracking-[0.3em] sm:tracking-[0.4em] font-black font-mono focus:border-violet-400 dark:focus:border-violet-400 focus:outline-none transition-colors placeholder:text-neutral-400 dark:placeholder:text-neutral-600"
+                  className="w-full bg-neutral-50 dark:bg-zinc-800 border-2 border-neutral-200 dark:border-zinc-600 rounded-xl px-4 py-3.5 sm:py-4 text-black dark:text-white text-center text-xl sm:text-2xl tracking-[0.3em] sm:tracking-[0.4em] font-black font-mono focus:border-violet-400 dark:focus:border-violet-400 focus:outline-none transition-colors placeholder:text-neutral-400 dark:placeholder:text-neutral-600"
                   onKeyDown={(e) => { if (e.key === "Enter" && roomInput.length === 5 && !isSubmitting) joinRoom(roomInput, nameInput || user?.name || "Player"); }}
                 />
               </div>

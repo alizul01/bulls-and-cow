@@ -185,17 +185,6 @@ export const gameWS = {
           return;
         }
 
-        if (!isValidNumber(guess, room.settings.digitLength, room.settings.allowDuplicates)) {
-          ws.send({
-            type: "invalid_guess",
-            payload: {
-              message: room.settings.allowDuplicates
-                ? `Must be ${room.settings.digitLength} digits`
-                : `Must be ${room.settings.digitLength} unique digits`,
-            },
-          });
-          return;
-        }
         if (room.phase === "finished") {
           ws.send({ type: "join_error", payload: { message: "This game has already finished" } });
           return;
@@ -311,11 +300,6 @@ export const gameWS = {
         }
 
         if (messageId && isDuplicateMessage(code, messageId)) {
-          return;
-        }
-
-        if (!isValidNumber(secret)) {
-          ws.send({ type: "invalid_secret", payload: { message: "Must be 4 unique digits" } });
           return;
         }
 
